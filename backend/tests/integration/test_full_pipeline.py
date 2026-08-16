@@ -195,3 +195,111 @@ class TestErrorCases:
             files={"file": ("", io.BytesIO(content), "video/mp4")},
         )
         assert response.status_code in (400, 422)
+
+
+class TestVideoProcessEndpoint:
+    """Tests for POST /api/video/{video_id}/process returning session_id.
+
+    Validates the unified flow: frontend calls video process endpoint,
+    gets back session_id for WebSocket connection.
+    """
+
+    def test_process_returns_session_id(self, client, mock_mp4_content):
+        """Test that process endpoint returns session_id for WebSocket."""
+        # Upload video
+        upload_response = client.post(
+            "/api/video/upload",
+            files={"file": ("test.mp4", io.BytesIO(mock_mp4_content), "video/mp4")},
+        )
+        assert upload_response.status_code == 201
+        video_id = upload_response.json()["id"]
+
+        # Call the frontend's endpoint: POST /api/video/{id}/process
+        process_response = client.post(
+            f"/api/video/{video_id}/process",
+            json={"mode": "single_player"},
+        )
+        assert process_response.status_code == 200
+        data = process_response.json()
+        assert "session_id" in data
+        assert len(data["session_id"]) > 0
+
+    def test_process_nonexistent_video_returns_404(self, client):
+        """Test that processing a non-existent video returns 404."""
+        response = client.post(
+            f"/api/video/{uuid4()}/process",
+            json={"mode": "ball_only"},
+        )
+        assert response.status_code == 404
+
+    def test_process_with_target_player_ids(self, client, mock_mp4_content):
+        """Test process endpoint accepts target_player_ids from frontend."""
+        upload_response = client.post(
+            "/api/video/upload",
+            files={"file": ("test.mp4", io.BytesIO(mock_mp4_content), "video/mp4")},
+        )
+        video_id = upload_response.json()["id"]
+
+        process_response = client.post(
+            f"/api/video/{video_id}/process",
+            json={
+                "mode": "group_tracking",
+                "target_player_ids": ["1", "5", "9"],
+            },
+        )
+        assert process_response.status_code == 200
+        assert "session_id" in process_response.json()
+
+    def test_process_with_calibration_object(self, client, mock_mp4_content):
+        """Test process endpoint accepts calibration data from frontend."""
+        upload_response = client.post(
+            "/api/video/upload",
+            files={"file": ("test.mp4", io.BytesIO(mock_mp4_content), "video/mp4")},
+        )
+        video_id = upload_response.json()["id"]
+
+        calibration = {
+            "id": "cal-1",
+            "video_id": video_id,
+            "points": [
+                {"pixel_x": 0, "pixel_y": 0, "field_x": 0, "field_y": 0},
+                {"pixel_x": 100, "pixel_y": 0, "field_x": 100, "field_y": 0},
+                {"pixel_x": 100, "pixel_y": 70, "field_x": 100, "field_y": 70},
+                {"pixel_x": 0, "pixel_y": 70, "field_x": 0, "field_y": 70},
+            ],
+            "homography_matrix": None,
+            "is_auto": False,
+            "confidence": 1.0,
+        }
+
+        process_response = client.post(
+            f"/api/video/{video_id}/process",
+            json={
+                "mode": "single_player",
+                "calibration": calibration,
+            },
+        )
+        assert process_response.status_code == 200
+        assert "session_id" in process_response.json()
+
+    def test_process_cannot_reprocess_analyzing_video(self, client, mock_mp4_content):
+        """Test that a video already being analyzed cannot be reprocessed."""
+        upload_response = client.post(
+            "/api/video/upload",
+            files={"file": ("test.mp4", io.BytesIO(mock_mp4_content), "video/mp4")},
+        )
+        video_id = upload_response.json()["id"]
+
+        # First process call - should succeed
+        first_response = client.post(
+            f"/api/video/{video_id}/process",
+            json={"mode": "ball_only"},
+        )
+        assert first_response.status_code == 200
+
+        # Second process call - should fail with 409 (already analyzing)
+        second_response = client.post(
+            f"/api/video/{video_id}/process",
+            json={"mode": "ball_only"},
+        )
+        assert second_response.status_code == 409

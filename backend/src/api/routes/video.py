@@ -4,18 +4,20 @@ Handles video upload, metadata retrieval, processing initiation,
 results retrieval, video streaming, and video deletion.
 """
 
+import logging
 import os
-import shutil
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from src.api.security import sanitize_filename, validate_file_upload
 from src.config.settings import get_settings
 from src.core.enums import TrackingMode, VideoStatus
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/video", tags=["video"])
 
@@ -46,8 +48,10 @@ class ProcessRequest(BaseModel):
 
     mode: TrackingMode
     target_ids: list[int] = Field(default_factory=list)
+    target_player_ids: Optional[list[str]] = Field(default=None)
     calibration_id: Optional[str] = None
     calibration_points: Optional[list[dict]] = None
+    calibration: Optional[dict] = None
 
 
 class ProcessingResult(BaseModel):
@@ -163,19 +167,25 @@ async def get_video(video_id: str) -> VideoMetadata:
     return VideoMetadata(**_videos[video_id])
 
 
-@router.post("/{video_id}/process", response_model=ProcessingResult)
-async def process_video(video_id: str, request: ProcessRequest) -> ProcessingResult:
+@router.post("/{video_id}/process")
+async def process_video(video_id: str, request: ProcessRequest, req: Request) -> dict[str, str]:
     """Start processing a video with the specified tracking mode.
+
+    Instantiates the full CV pipeline (YOLODetector, MultiObjectTracker,
+    TrackingStrategy, AnalyticsEngine), starts background processing,
+    and returns a session_id for WebSocket progress tracking.
 
     Args:
         video_id: UUID of the video to process.
         request: Processing configuration (mode, targets, calibration).
+        req: FastAPI request for accessing app state.
 
     Returns:
-        ProcessingResult with initial status.
+        Dict with session_id for WebSocket progress tracking.
 
     Raises:
-        HTTPException: If video is not found or not in uploadable state.
+        HTTPException: If video is not found, not in processable state,
+                       or CV pipeline instantiation fails.
     """
     if video_id not in _videos:
         raise HTTPException(
@@ -194,16 +204,180 @@ async def process_video(video_id: str, request: ProcessRequest) -> ProcessingRes
     # Update status to processing
     video["status"] = VideoStatus.ANALYZING
 
-    # In a real implementation, this would queue a background task
-    # For now, return the processing status
-    return ProcessingResult(
-        video_id=video_id,
-        status=VideoStatus.ANALYZING.value,
-        total_frames=None,
-        fps=None,
-        duration_s=None,
-        analytics=None,
+    # Get services from app state
+    analysis_service = req.app.state.analysis_service
+    background_task_manager = req.app.state.background_task_manager
+
+    # Create an analysis session
+    from src.core.models import AnalysisRequest as DomainAnalysisRequest
+
+    try:
+        video_uuid = UUID(video_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid video_id format",
+        )
+
+    domain_request = DomainAnalysisRequest(
+        video_id=video_uuid,
+        mode=request.mode,
+        players=[],
+        calibration=None,
     )
+
+    session_id = analysis_service.start_analysis(domain_request)
+
+    video_path = video.get("file_path")
+    if not video_path:
+        analysis_service.mark_failed(session_id, "Video file path not found")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Video file path not found on server",
+        )
+
+    from src.api.websocket import manager as ws_manager
+
+    # Instantiate the CV pipeline
+    video_processor = None
+    instantiation_error = None
+    try:
+        from src.cv.detector import YOLODetector
+        from src.cv.tracker import MultiObjectTracker
+        from src.cv.tracking_modes import (
+            BallCarrierStrategy,
+            BallOnlyStrategy,
+            GroupTrackingStrategy,
+            SinglePlayerStrategy,
+        )
+        from src.cv.analytics import AnalyticsEngine
+
+        logger.info(
+            f"[Session {session_id}] Initializing CV pipeline | "
+            f"Mode: {request.mode.value} | Video: {video_path}"
+        )
+
+        # Create detector with YOLOv8n (lightweight, GTX 1060 compatible)
+        detector = YOLODetector(
+            model_path="yolov8n.pt",
+            confidence_threshold=0.25,
+            device="auto",
+        )
+
+        # Create ByteTrack-style tracker
+        tracker = MultiObjectTracker(
+            iou_threshold=0.3,
+            max_age=30,
+            min_hits=3,
+        )
+
+        # Select tracking strategy based on mode
+        strategy_map = {
+            TrackingMode.SINGLE_PLAYER: SinglePlayerStrategy,
+            TrackingMode.BALL_CARRIER: BallCarrierStrategy,
+            TrackingMode.BALL_ONLY: BallOnlyStrategy,
+            TrackingMode.GROUP_TRACKING: GroupTrackingStrategy,
+        }
+        strategy_class = strategy_map.get(request.mode, SinglePlayerStrategy)
+        tracking_strategy = strategy_class()
+
+        # Create analytics engine (FPS will be updated during processing)
+        analytics_engine = AnalyticsEngine(fps=30.0)
+
+        # Handle calibration-based homography transform
+        from src.cv.video_processor import VideoProcessor
+
+        transform = None
+        calibration_data = request.calibration
+        if calibration_data and isinstance(calibration_data, dict):
+            cal_points = calibration_data.get("points")
+            if cal_points and len(cal_points) >= 4:
+                try:
+                    from src.cv.transform import HomographyTransform
+                    import numpy as np
+                    import cv2
+
+                    src_pts = np.array(
+                        [[p.get("pixel_x", p[0] if isinstance(p, (list, tuple)) else 0),
+                          p.get("pixel_y", p[1] if isinstance(p, (list, tuple)) else 0)]
+                         for p in cal_points[:4]],
+                        dtype=np.float64,
+                    )
+                    dst_pts = np.array(
+                        [[p.get("field_x", p[2] if isinstance(p, (list, tuple)) else 0),
+                          p.get("field_y", p[3] if isinstance(p, (list, tuple)) else 0)]
+                         for p in cal_points[:4]],
+                        dtype=np.float64,
+                    )
+                    matrix, _ = cv2.findHomography(src_pts, dst_pts)
+                    if matrix is not None:
+                        transform = HomographyTransform(matrix)
+                        logger.info(f"[Session {session_id}] Homography transform initialized")
+                except Exception as cal_err:
+                    logger.warning(
+                        f"[Session {session_id}] Could not compute homography: {cal_err}. "
+                        f"Proceeding without coordinate transform."
+                    )
+
+        video_processor = VideoProcessor(
+            detector=detector,
+            tracker=tracker,
+            transform=transform,
+            tracking_strategy=tracking_strategy,
+            analytics_engine=analytics_engine,
+        )
+        logger.info(f"[Session {session_id}] CV pipeline initialized successfully")
+
+    except Exception as e:
+        instantiation_error = str(e)
+        logger.error(
+            f"[Session {session_id}] Failed to initialize CV pipeline: {instantiation_error}",
+            exc_info=True,
+        )
+
+    # If instantiation failed, report error immediately
+    if instantiation_error and video_processor is None:
+        analysis_service.mark_failed(
+            session_id, f"CV pipeline initialization failed: {instantiation_error}"
+        )
+        # Send error via WebSocket so frontend knows immediately
+        await ws_manager.send_message(
+            session_id,
+            {
+                "type": "error",
+                "session_id": session_id,
+                "error": f"No se pudo inicializar el procesador de video: {instantiation_error}",
+            },
+        )
+        # Still return session_id so frontend can display the error state
+        return {"session_id": session_id}
+
+    # Build target IDs from both possible request fields
+    target_ids: list[int] = list(request.target_ids) if request.target_ids else []
+    if request.target_player_ids:
+        for pid in request.target_player_ids:
+            try:
+                target_ids.append(int(pid))
+            except (ValueError, TypeError):
+                pass
+
+    # Start background processing
+    await background_task_manager.start_processing(
+        session_id=session_id,
+        video_path=video_path,
+        mode=request.mode.value,
+        target_ids=target_ids,
+        analysis_service=analysis_service,
+        ws_manager=ws_manager,
+        video_processor=video_processor,
+    )
+
+    logger.info(
+        f"[Session {session_id}] Background processing started | "
+        f"Video: {video_id} | Mode: {request.mode.value}"
+    )
+
+    return {"session_id": session_id}
 
 
 @router.get("/{video_id}/results", response_model=ProcessingResult)
