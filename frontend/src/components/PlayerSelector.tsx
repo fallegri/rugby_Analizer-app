@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Stage, Layer, Rect, Text, Circle } from 'react-konva';
 import { UserPlus, X } from 'lucide-react';
 import { PlayerSelection, TrackingMode } from '../types';
@@ -9,6 +9,11 @@ interface PlayerSelectorProps {
   videoHeight: number;
   containerWidth: number;
   containerHeight: number;
+  /**
+   * When true, the selector stretches to fill its parent element and
+   * measures its own rendered size (used when overlaying the video).
+   */
+  fillContainer?: boolean;
 }
 
 export const PlayerSelector: React.FC<PlayerSelectorProps> = ({
@@ -16,14 +21,41 @@ export const PlayerSelector: React.FC<PlayerSelectorProps> = ({
   videoHeight,
   containerWidth,
   containerHeight,
+  fillContainer = false,
 }) => {
   const { trackingMode, selectedPlayers, addPlayer, removePlayer } = useAnalysisStore();
   const [isSelecting, setIsSelecting] = useState(false);
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
   const [currentRect, setCurrentRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [measuredSize, setMeasuredSize] = useState({ width: containerWidth, height: containerHeight });
 
-  const scaleX = containerWidth / (videoWidth || 1);
-  const scaleY = containerHeight / (videoHeight || 1);
+  // When overlaying the video, measure the actual rendered size so the
+  // Konva canvas exactly covers the video frame.
+  useEffect(() => {
+    if (!fillContainer) return;
+    const el = wrapperRef.current;
+    if (!el) return;
+
+    const update = () => {
+      setMeasuredSize({ width: el.clientWidth, height: el.clientHeight });
+    };
+    update();
+
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    if (observer) observer.observe(el);
+    window.addEventListener('resize', update);
+    return () => {
+      if (observer) observer.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, [fillContainer]);
+
+  const effectiveWidth = fillContainer ? measuredSize.width : containerWidth;
+  const effectiveHeight = fillContainer ? measuredSize.height : containerHeight;
+
+  const scaleX = effectiveWidth / (videoWidth || 1);
+  const scaleY = effectiveHeight / (videoHeight || 1);
 
   const isSingleMode = trackingMode === TrackingMode.SINGLE_PLAYER;
   const canAddMore = !isSingleMode || selectedPlayers.length === 0;
@@ -72,14 +104,14 @@ export const PlayerSelector: React.FC<PlayerSelectorProps> = ({
   };
 
   return (
-    <div className="relative">
+    <div ref={wrapperRef} className={fillContainer ? "absolute inset-0 w-full h-full" : "relative"}>
       <Stage
-        width={containerWidth}
-        height={containerHeight}
+        width={effectiveWidth}
+        height={effectiveHeight}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        className="absolute inset-0"
+        className="absolute inset-0 cursor-crosshair"
       >
         <Layer>
           {selectedPlayers.map((player) => (

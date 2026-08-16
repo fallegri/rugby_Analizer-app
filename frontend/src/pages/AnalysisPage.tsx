@@ -12,7 +12,52 @@ import { ProcessingStatus } from '../components/ProcessingStatus';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { getVideo, startProcessing, getAnalysisStatus } from '../services/api';
 import { wsService } from '../services/websocket';
-import { AnalysisStatus, TrackingMode } from '../types';
+import { AnalysisStatus, TrackingMode, TrackingResult, PlayerMetrics } from '../types';
+
+/**
+ * Transform raw backend results (from WebSocket/polling) into a TrackingResult
+ * that AnalyticsDashboard and FieldView can consume.
+ */
+function transformBackendResults(
+  raw: Record<string, unknown>,
+  sessionId: string,
+  videoId: string,
+  mode: TrackingMode
+): TrackingResult {
+  // The backend now sends a 'players' array in PlayerMetrics format
+  const rawPlayers = (raw.players as Record<string, unknown>[] | undefined) || [];
+
+  const players: PlayerMetrics[] = rawPlayers.map((p: Record<string, unknown>) => ({
+    player_id: String(p.player_id || ''),
+    total_distance_km: Number(p.total_distance_km || 0),
+    max_speed_kmh: Number(p.max_speed_kmh || 0),
+    avg_speed_kmh: Number(p.avg_speed_kmh || 0),
+    sprint_count: Number(p.sprint_count || 0),
+    sprints: ((p.sprints as Record<string, unknown>[]) || []).map((s) => ({
+      start_time: Number(s.start_time || 0),
+      end_time: Number(s.end_time || 0),
+      max_speed: Number(s.max_speed || 0),
+      distance: Number(s.distance || 0),
+    })),
+    route: ((p.route as Record<string, unknown>[]) || []).map((r) => ({
+      x: Number(r.x || 0),
+      y: Number(r.y || 0),
+      timestamp: Number(r.timestamp || 0),
+      speed: Number(r.speed || 0),
+    })),
+  }));
+
+  return {
+    session_id: sessionId,
+    video_id: videoId,
+    mode,
+    status: AnalysisStatus.COMPLETED,
+    players,
+    duration: Number(raw.duration_s || 0),
+    processed_frames: Number(raw.total_frames || 0),
+    total_frames: Number(raw.total_frames || 0),
+  };
+}
 
 export const AnalysisPage: React.FC = () => {
   const { videoId } = useParams<{ videoId: string }>();
@@ -119,6 +164,16 @@ export const AnalysisPage: React.FC = () => {
           if (msg.status === 'completed') {
             setProcessingStatus(AnalysisStatus.COMPLETED);
             stopPolling();
+            // Transform and set results from the completed progress message
+            if (msg.data?.results) {
+              const transformed = transformBackendResults(
+                msg.data.results as Record<string, unknown>,
+                sessionIdRef.current || '',
+                videoId || '',
+                trackingMode
+              );
+              setResults(transformed);
+            }
           }
           break;
         case 'status':
@@ -129,6 +184,17 @@ export const AnalysisPage: React.FC = () => {
         case 'result':
           if (msg.data?.result) {
             setResults(msg.data.result);
+            setProcessingStatus(AnalysisStatus.COMPLETED);
+            stopPolling();
+          } else if (msg.data?.results) {
+            // Fallback: transform raw results
+            const transformed = transformBackendResults(
+              msg.data.results as Record<string, unknown>,
+              sessionIdRef.current || '',
+              videoId || '',
+              trackingMode
+            );
+            setResults(transformed);
             setProcessingStatus(AnalysisStatus.COMPLETED);
             stopPolling();
           }
@@ -142,7 +208,7 @@ export const AnalysisPage: React.FC = () => {
     });
 
     return unsubMessage;
-  }, [updateProgress, updateProcessingDetails, setProcessingStatus, setResults]);
+  }, [updateProgress, updateProcessingDetails, setProcessingStatus, setResults, videoId, trackingMode]);
 
   const handleStartProcessing = async () => {
     if (!videoId) return;
@@ -238,20 +304,25 @@ export const AnalysisPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
         {/* Left panel - Video + Player selector */}
         <div className="flex flex-col gap-4 overflow-y-auto">
-          <VideoPlayer
-            src={videoSrc}
-            onFrameCapture={handleFrameCapture}
-            overlayData={undefined}
-          />
-
-          {showPlayerSelector && (
-            <PlayerSelector
-              videoWidth={currentVideo?.width || 1920}
-              videoHeight={currentVideo?.height || 1080}
-              containerWidth={640}
-              containerHeight={360}
+          <div className="relative">
+            <VideoPlayer
+              src={videoSrc}
+              onFrameCapture={handleFrameCapture}
+              overlayData={undefined}
             />
-          )}
+
+            {showPlayerSelector && (
+              <div className="absolute top-0 left-0 right-0 bottom-[52px] z-10">
+                <PlayerSelector
+                  videoWidth={currentVideo?.width || 1920}
+                  videoHeight={currentVideo?.height || 1080}
+                  containerWidth={0}
+                  containerHeight={0}
+                  fillContainer
+                />
+              </div>
+            )}
+          </div>
 
           <FieldCalibration
             frameBlob={frameBlob}

@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-009",
+  "type": "fix",
+  "description": "Fix results display and player selector overlay: 1) Transform backend analytics to PlayerMetrics[] format so AnalyticsDashboard and FieldView display data correctly. 2) Position PlayerSelector absolutely over VideoPlayer so users can draw selection rectangles on the video.",
+  "status": "in_progress",
+  "steps": [
+    "Fix backend/src/services/background_tasks.py: Transform AnalyticsResult into PlayerMetrics[] format with route_points, sprint_segments, distances, speeds",
+    "Fix frontend/src/pages/AnalysisPage.tsx: Wrap VideoPlayer and PlayerSelector in a relative-positioned container, position PlayerSelector absolutely over the video",
+    "Add frontend result transformation as fallback in WebSocket message handler to convert backend results into TrackingResult format",
+    "Verify build and tests pass"
+  ],
+  "acceptance_criteria": [
+    "Backend results_dict includes a 'players' array with full PlayerMetrics data (total_distance_km, max_speed_kmh, avg_speed_kmh, sprint_count, sprints, route)",
+    "AnalyticsDashboard displays distance, speeds, sprints for each player when processing completes",
+    "FieldView displays player routes on the field map when processing completes",
+    "PlayerSelector canvas is overlaid on top of the video player",
+    "User can draw selection rectangles directly on the video",
+    "Frontend builds without errors",
+    "All existing tests pass"
+  ],
+  "verification": [
+    "cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

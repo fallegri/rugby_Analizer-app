@@ -7,6 +7,7 @@ Sends rich progress updates with stages, timing, and FPS info.
 
 import asyncio
 import logging
+import math
 import time
 from typing import Any, Optional
 
@@ -232,19 +233,54 @@ class BackgroundTaskManager:
                 ),
             )
 
-            # Convert result to serializable dict
+            # Convert result to serializable dict matching frontend PlayerMetrics[] format
+            players_list = []
+            for track_id, analytics in result.analytics.items():
+                player_metrics = {
+                    "player_id": str(track_id),
+                    "total_distance_km": getattr(analytics, "total_distance_km", 0.0),
+                    "max_speed_kmh": getattr(analytics, "max_speed_kmh", 0.0),
+                    "avg_speed_kmh": getattr(analytics, "avg_speed_kmh", 0.0),
+                    "sprint_count": len(getattr(analytics, "sprint_segments", [])),
+                    "sprints": [
+                        {
+                            "start_time": seg.start_frame / result.fps if result.fps > 0 else 0.0,
+                            "end_time": seg.end_frame / result.fps if result.fps > 0 else 0.0,
+                            "max_speed": seg.max_speed_kmh,
+                            "distance": seg.distance_m,
+                        }
+                        for seg in getattr(analytics, "sprint_segments", [])
+                    ],
+                    "route": [
+                        {
+                            "x": pt[0],
+                            "y": pt[1],
+                            "timestamp": pt[2],
+                            "speed": 0.0,
+                        }
+                        for pt in getattr(analytics, "route_points", [])
+                    ],
+                }
+                # Compute speed for each route point (distance / time between consecutive points)
+                route = player_metrics["route"]
+                for i in range(1, len(route)):
+                    prev = route[i - 1]
+                    curr = route[i]
+                    dt = curr["timestamp"] - prev["timestamp"]
+                    if dt > 0:
+                        dist = math.sqrt((curr["x"] - prev["x"]) ** 2 + (curr["y"] - prev["y"]) ** 2)
+                        speed_ms = dist / dt
+                        curr["speed"] = speed_ms  # m/s for frontend chart (converts to km/h via *3.6)
+                    else:
+                        curr["speed"] = 0.0
+
+                players_list.append(player_metrics)
+
             results_dict = {
                 "total_frames": result.total_frames,
                 "fps": result.fps,
                 "duration_s": result.duration_s,
-                "analytics": {
-                    str(track_id): {
-                        "max_speed": getattr(analytics, "max_speed", None),
-                        "avg_speed": getattr(analytics, "avg_speed", None),
-                        "total_distance": getattr(analytics, "total_distance", None),
-                    }
-                    for track_id, analytics in result.analytics.items()
-                },
+                "players": players_list,
             }
 
             analysis_service.mark_completed(session_id, results_dict)
