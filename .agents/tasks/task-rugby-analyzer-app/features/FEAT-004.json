@@ -1,0 +1,45 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "React frontend application: Video upload interface, interactive player selection on video frames, field calibration UI (auto + manual point marking), real-time analysis dashboard with routes visualization on field map, analytics display (speeds, distances), AI chat panel for game analysis queries. WebSocket integration for live progress updates.",
+  "status": "completed",
+  "steps": [
+    "Implement frontend/src/types/index.ts: TypeScript interfaces mirroring backend models (Video, TrackingSession, TrackingResult, FieldCalibration, PlayerSelection, AnalysisRequest, AIProvider enum, TrackingMode enum, WebSocketMessage)",
+    "Implement frontend/src/services/api.ts: Axios/fetch-based API client with base URL config, auth header injection, error handling. Methods for all backend endpoints: uploadVideo(), getVideo(), startProcessing(), getResults(), getProviders(), switchProvider(), updateConfig(), autoCalibrate(), manualCalibrate()",
+    "Implement frontend/src/services/websocket.ts: WebSocket client service with auto-reconnect, heartbeat, message parsing. Exposes reactive state for connection status and incoming messages. Methods: connect(sessionId), disconnect(), onMessage(handler)",
+    "Implement frontend/src/stores/analysisStore.ts: Zustand store for analysis state: currentVideo, trackingMode, selectedPlayers, calibration, processingStatus, results, aiProvider. Actions: setVideo, setMode, selectPlayer, deselectPlayer, setCalibration, updateProgress, setResults",
+    "Implement frontend/src/stores/settingsStore.ts: Zustand store for app settings: activeAIProvider, apiKeys (per provider), theme, language. Persisted to localStorage.",
+    "Implement frontend/src/components/VideoUpload.tsx: Drag-and-drop video upload component with progress bar, file validation (format, size), preview thumbnail generation. Uses react-dropzone pattern.",
+    "Implement frontend/src/components/VideoPlayer.tsx: Video player with frame-by-frame navigation, play/pause, seek bar. Renders canvas overlay for bounding boxes and tracking visualization. Uses HTML5 video element + canvas overlay.",
+    "Implement frontend/src/components/PlayerSelector.tsx: Interactive overlay on video frame. User clicks on a player to select them (draws bounding box). Supports multi-select for group tracking mode. Shows player ID badges. Uses react-konva for canvas interactions.",
+    "Implement frontend/src/components/FieldCalibration.tsx: Two modes - Auto (button triggers backend auto-detection, displays detected lines for confirmation) and Manual (user clicks 4+ points on video frame and maps to field coordinates using a side-by-side field diagram). Uses react-konva for point placement.",
+    "Implement frontend/src/components/FieldView.tsx: 2D top-down rugby field visualization (SVG or Canvas). Draws field lines (try lines, 22m, 10m, halfway, touchlines). Overlays player routes as colored paths, current positions as dots. Supports zoom and pan. Shows heat map overlay option.",
+    "Implement frontend/src/components/AnalyticsDashboard.tsx: Dashboard showing computed metrics per player: distance covered (km), max speed (km/h), average speed (km/h), sprint count, route visualization. Uses charts (recharts or similar) for speed over time graphs.",
+    "Implement frontend/src/components/AIChat.tsx: Chat panel where user can ask AI about the analysis (e.g., 'analyze player 9 positioning'). Shows AI provider selector dropdown. Sends context (current analysis data) with user message to backend AI endpoint. Displays streaming responses.",
+    "Implement frontend/src/components/TrackingModeSelector.tsx: UI for selecting tracking mode (single player, ball carrier, ball only, group). Each mode shows relevant options (player selector for single/group, auto for ball carrier/ball only).",
+    "Implement frontend/src/components/Settings.tsx: Settings panel for configuring AI provider API keys, selecting default provider, adjusting processing parameters (confidence threshold, model size).",
+    "Implement frontend/src/pages/AnalysisPage.tsx: Main page composing all components in a responsive layout. Left panel: video + player selection. Right panel: field view + analytics. Bottom: AI chat. Top: mode selector + controls. Uses CSS grid layout.",
+    "Implement frontend/src/pages/HomePage.tsx: Landing page with video upload, recent analyses list, quick start guide.",
+    "Implement frontend/src/App.tsx: Router setup with pages, global layout (header with nav, settings button), theme provider, WebSocket connection management.",
+    "Write tests: frontend/src/__tests__/stores.test.ts (test Zustand stores), frontend/src/__tests__/api.test.ts (test API client with mocked fetch), frontend/src/__tests__/components/ (basic render tests for key components using vitest + testing-library)"
+  ],
+  "acceptance_criteria": [
+    "Frontend builds without errors: npm run build produces dist/ output",
+    "All TypeScript types compile without errors (strict mode)",
+    "Video upload component handles drag-and-drop and shows upload progress",
+    "Player selector allows clicking on video frame and captures coordinates",
+    "Field calibration UI supports both auto and manual modes",
+    "Field view renders rugby field with correct proportions and line markings",
+    "Analytics dashboard displays mock data with charts",
+    "AI chat sends messages and displays responses",
+    "WebSocket service connects and handles messages",
+    "All frontend tests pass: npm run test",
+    "Responsive layout works on desktop (1920x1080 minimum)"
+  ],
+  "verification": [
+    "cd /workspace/rugby_Analizer-app/frontend && npm run build",
+    "cd /workspace/rugby_Analizer-app/frontend && npm run test -- --run"
+  ],
+  "blocked_reason": null,
+  "findings": "fs_write tool had filesystem sync issues; had to use bash heredocs for all files. The konva library requires a 'canvas' native module in Node.js/jsdom test env, so react-konva must be mocked in tests. recharts ResponsiveContainer requires ResizeObserver polyfill in test-setup. Build produces a warning about chunk size (993KB) but functions correctly. All 25 tests pass (12 store, 7 API, 6 component)."
+}
