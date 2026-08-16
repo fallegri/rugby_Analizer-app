@@ -2,7 +2,7 @@
   "id": "FEAT-009",
   "type": "fix",
   "description": "Fix results display and player selector overlay: 1) Transform backend analytics to PlayerMetrics[] format so AnalyticsDashboard and FieldView display data correctly. 2) Position PlayerSelector absolutely over VideoPlayer so users can draw selection rectangles on the video.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Fix backend/src/services/background_tasks.py: Transform AnalyticsResult into PlayerMetrics[] format with route_points, sprint_segments, distances, speeds",
     "Fix frontend/src/pages/AnalysisPage.tsx: Wrap VideoPlayer and PlayerSelector in a relative-positioned container, position PlayerSelector absolutely over the video",
@@ -24,5 +24,5 @@
     "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All 215 backend tests pass. All 30 frontend tests pass. Frontend build succeeds (chunk size warning pre-existing). Backend results_dict now includes a 'players' array matching the frontend PlayerMetrics interface. Frontend WebSocket handler transforms raw results on completion. PlayerSelector uses fillContainer prop with ResizeObserver to dynamically measure and fill the video overlay area. The bottom-[52px] offset excludes the video controls bar from the overlay."
 }
