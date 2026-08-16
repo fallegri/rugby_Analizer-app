@@ -1,0 +1,1 @@
+"""Rugby Analyzer test suite."""
