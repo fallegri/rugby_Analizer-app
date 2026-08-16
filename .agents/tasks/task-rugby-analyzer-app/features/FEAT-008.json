@@ -2,7 +2,7 @@
   "id": "FEAT-008",
   "type": "fix",
   "description": "Fix end-to-end real-time progress display: WebSocket URL points to wrong port, race condition loses messages, no polling fallback, 409 prevents retry.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Fix WebSocket URL in frontend/src/services/websocket.ts to default to ws://localhost:8000 instead of ws://${window.location.host}",
     "Fix race condition in frontend/src/pages/AnalysisPage.tsx: connect WebSocket FIRST, wait for open, THEN call startProcessing",
@@ -25,5 +25,5 @@
     "cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All 215 backend tests and 30 frontend tests pass. Frontend build succeeds. Node 20 was installed via mise for running vitest (bun test lacks jsdom support). The vite.config.ts already had proxy config for /api and /ws to localhost:8000, but this only works in dev server mode - direct WebSocket connections from client-side code bypass the dev server proxy, so the explicit URL fix was still necessary. The mise.toml file was created in the frontend directory for node but not committed since it is environment-specific."
 }
