@@ -13,7 +13,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.main import create_app
-from src.services.analysis_service import AnalysisService
 
 
 @pytest.fixture
@@ -39,7 +38,7 @@ def mock_mp4_content():
 
 
 @pytest.fixture
-def completed_session(client, mock_mp4_content):
+def completed_session(app, client, mock_mp4_content):
     """Create a completed analysis session for testing."""
     # Upload video
     upload_response = client.post(
@@ -55,10 +54,8 @@ def completed_session(client, mock_mp4_content):
     )
     session_id = start_response.json()["session_id"]
 
-    # Mark as completed
-    from src.api.routes.analysis import get_analysis_service
-
-    service = get_analysis_service()
+    # Mark as completed using the app's analysis service instance
+    service = app.state.analysis_service
     service.mark_completed(
         session_id,
         {

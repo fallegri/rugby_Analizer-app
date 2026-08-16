@@ -13,7 +13,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.main import create_app
-from src.services.analysis_service import AnalysisService
 
 
 @pytest.fixture
@@ -109,7 +108,7 @@ class TestFullPipeline:
         assert results_response.status_code == 400
         assert "not complete" in results_response.json()["detail"].lower()
 
-    def test_get_results_after_completion(self, client, mock_mp4_content):
+    def test_get_results_after_completion(self, client, mock_mp4_content, app):
         """Test getting results after manually marking completion."""
         # Upload
         upload_response = client.post(
@@ -126,9 +125,7 @@ class TestFullPipeline:
         session_id = start_response.json()["session_id"]
 
         # Manually mark the session as completed (simulating background task)
-        from src.api.routes.analysis import get_analysis_service
-
-        service = get_analysis_service()
+        service = app.state.analysis_service
         service.mark_completed(
             session_id,
             {

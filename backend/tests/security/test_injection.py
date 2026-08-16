@@ -78,13 +78,12 @@ class TestSQLInjection:
 class TestXSSPrevention:
     """Tests for XSS content handling in AI prompts and responses."""
 
-    def test_xss_in_ai_prompt_handled_safely(self, client):
+    def test_xss_in_ai_prompt_handled_safely(self, client, app):
         """Test that XSS in AI prompt is passed safely (not rendered)."""
-        from src.api.routes.analysis import get_analysis_service
         from src.core.enums import TrackingMode
         from src.core.models import AnalysisRequest
 
-        service = get_analysis_service()
+        service = app.state.analysis_service
         request = AnalysisRequest(
             video_id=uuid4(),
             mode=TrackingMode.SINGLE_PLAYER,
@@ -156,13 +155,12 @@ class TestOversizedRequests:
         response = client.post("/api/analysis/start", json=large_data)
         assert response.status_code in (201, 400, 413, 422)
 
-    def test_oversized_ai_prompt(self, client):
+    def test_oversized_ai_prompt(self, client, app):
         """Test that oversized AI prompt is rejected via validation."""
-        from src.api.routes.analysis import get_analysis_service
         from src.core.enums import TrackingMode
         from src.core.models import AnalysisRequest
 
-        service = get_analysis_service()
+        service = app.state.analysis_service
         request = AnalysisRequest(
             video_id=uuid4(),
             mode=TrackingMode.SINGLE_PLAYER,

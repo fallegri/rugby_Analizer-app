@@ -95,7 +95,7 @@ async def start_analysis(request: StartAnalysisRequest, req: Request) -> dict[st
     Raises:
         HTTPException: If video_id is invalid.
     """
-    service = get_analysis_service()
+    service = req.app.state.analysis_service
 
     # Validate video_id format
     try:
@@ -263,11 +263,12 @@ async def start_analysis(request: StartAnalysisRequest, req: Request) -> dict[st
 
 
 @router.get("/{session_id}/status", response_model=AnalysisStatusResponse)
-async def get_analysis_status(session_id: str) -> AnalysisStatusResponse:
+async def get_analysis_status(session_id: str, req: Request) -> AnalysisStatusResponse:
     """Get the current status of an analysis session.
 
     Args:
         session_id: The analysis session UUID.
+        req: FastAPI request object for accessing app state.
 
     Returns:
         Current progress information.
@@ -275,7 +276,7 @@ async def get_analysis_status(session_id: str) -> AnalysisStatusResponse:
     Raises:
         HTTPException: If session not found.
     """
-    service = get_analysis_service()
+    service = req.app.state.analysis_service
 
     try:
         status_data = service.get_status(session_id)
@@ -289,11 +290,12 @@ async def get_analysis_status(session_id: str) -> AnalysisStatusResponse:
 
 
 @router.get("/{session_id}/results", response_model=AnalysisResultsResponse)
-async def get_analysis_results(session_id: str) -> AnalysisResultsResponse:
+async def get_analysis_results(session_id: str, req: Request) -> AnalysisResultsResponse:
     """Get completed analysis results.
 
     Args:
         session_id: The analysis session UUID.
+        req: FastAPI request object for accessing app state.
 
     Returns:
         Full analysis results.
@@ -301,7 +303,7 @@ async def get_analysis_results(session_id: str) -> AnalysisResultsResponse:
     Raises:
         HTTPException: If session not found or not complete.
     """
-    service = get_analysis_service()
+    service = req.app.state.analysis_service
 
     try:
         results = service.get_results(session_id)
@@ -337,7 +339,7 @@ async def ai_query(session_id: str, request: AIQueryRequest, req: Request) -> AI
     Raises:
         HTTPException: If session not found or AI provider unavailable.
     """
-    service = get_analysis_service()
+    service = req.app.state.analysis_service
 
     # Verify session exists
     if not service.session_exists(session_id):
