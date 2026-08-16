@@ -88,17 +88,25 @@ class ConnectionManager:
     ) -> None:
         """Broadcast a progress update for a session.
 
+        Sends a rich progress message including stage, timing, frame info,
+        and a heartbeat timestamp so the frontend can detect stalls.
+
         Args:
             session_id: The session ID.
             progress: Progress percentage (0-100).
             status: Current status string.
-            data: Optional additional data.
+            data: Optional additional data containing stage, timing, and frame info.
+                Expected keys: stage, current_frame, total_frames, fps,
+                elapsed_time, eta, timestamp.
         """
-        message = {
+        import time
+
+        message: dict[str, Any] = {
             "type": "progress",
             "session_id": session_id,
             "progress": progress,
             "status": status,
+            "timestamp": time.time(),
         }
         if data:
             message["data"] = data

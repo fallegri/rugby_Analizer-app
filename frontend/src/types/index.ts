@@ -119,12 +119,26 @@ export interface AnalysisRequest {
 }
 
 export interface WebSocketMessage {
-  type: 'progress' | 'status' | 'result' | 'error';
-  data: {
+  // Top-level fields from backend broadcast_progress
+  session_id?: string;
+  progress?: number;
+  status?: string;
+  timestamp?: number;
+  message?: string;
+  error?: string;
+  type: 'progress' | 'status' | 'result' | 'error' | 'connected' | 'pong' | 'ack' | 'subscribed';
+  data?: {
     progress?: number;
     status?: AnalysisStatus;
     message?: string;
     result?: TrackingResult;
+    stage?: string;
+    current_frame?: number;
+    total_frames?: number;
+    fps?: number;
+    elapsed_time?: number;
+    eta?: number;
+    results?: Record<string, unknown>;
   };
 }
 

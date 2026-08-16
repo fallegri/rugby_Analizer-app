@@ -1,0 +1,25 @@
+{
+  "project_type": "Full-stack rugby video analysis web application with Python backend (FastAPI), React frontend, and computer vision pipeline (YOLO/ByteTrack)",
+  "language": "Python (backend + CV), TypeScript (frontend)",
+  "build_system": "uv for Python dependency management, npm/vite for frontend, Docker Compose for full-stack orchestration",
+  "test_framework": "pytest with pytest-asyncio for backend, vitest for frontend, pytest-security for OWASP checks",
+  "build_command": "cd backend && uv sync && cd ../frontend && npm install && npm run build",
+  "test_command": "cd backend && uv run pytest tests/ -v && cd ../frontend && npm run test",
+  "verification_instructions": "1. Run backend tests: cd backend && uv run pytest tests/ -v. 2. Run frontend build: cd frontend && npm run build. 3. Run docker-compose build to validate containers. 4. Run security tests: cd backend && uv run pytest tests/security/ -v",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "1. pyenv local 3.11.15. 2. cd backend && uv sync. 3. cd frontend && npm install. 4. Copy .env.example to .env and configure API keys.",
+  "environment_constraints": "Sandbox has no GPU - tests must mock CV inference. Target deployment hardware: GTX 1060 8GB VRAM, 32GB RAM. Network is OPEN_INTERNET - all packages installable. Python 3.11 available via pyenv. Required: dnf install mesa-libGL for OpenCV.",
+  "contribution_requirements": "SOLID principles mandatory. ISO 42010 architecture documentation. Security tests for API/socket endpoints. OWASP compliance. BDD/TDD approach.",
+  "key_patterns": "Hexagonal architecture (ports & adapters) for AI provider abstraction. Strategy pattern for tracking modes. Observer pattern for real-time events via WebSocket. Repository pattern for data access. Factory pattern for AI provider instantiation.",
+  "relevant_files": [
+    "backend/src/core/",
+    "backend/src/adapters/",
+    "backend/src/ports/",
+    "backend/src/cv/",
+    "backend/src/api/",
+    "frontend/src/",
+    "docs/architecture/",
+    "docker-compose.yml"
+  ],
+  "directory_structure": "Monorepo: /backend (FastAPI + CV pipeline), /frontend (React + Vite), /docs (ISO 42010 architecture docs), /docker (Dockerfiles), /.github (CI), root has docker-compose.yml"
+}
