@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-010",
+  "type": "fix",
+  "description": "Fix 4 interconnected bugs: 1) 430km distance (pixels treated as meters without calibration), 2) FieldView shows nothing (route points in pixel space), 3) Single player mode fails (timestamp-based IDs vs integer track IDs), 4) Manual calibration needs simpler PlayArea approach.",
+  "status": "in_progress",
+  "steps": [
+    "Add LinearFieldTransform class to backend/src/cv/transform.py for simple rectangle-based field mapping",
+    "Modify backend/src/cv/video_processor.py: Add default pixel-to-field normalization (60m x 40m) when no transform is provided, store frame dimensions, add target acquisition phase for single player",
+    "Modify backend/src/api/routes/video.py: Handle play_area calibration data to create LinearFieldTransform, pass player selection bounding boxes for target acquisition",
+    "Add PlayArea interface to frontend/src/types/index.ts",
+    "Add PlayArea calibration mode to frontend/src/components/FieldCalibration.tsx with draggable rectangle on field SVG",
+    "Update frontend/src/pages/AnalysisPage.tsx to pass play_area and player selection bbox to processing config",
+    "Verify build and tests pass"
+  ],
+  "acceptance_criteria": [
+    "Without calibration, distances are computed in field-meter space (60m x 40m frame assumption) not pixels",
+    "FieldView displays route points correctly within 0-100 x 0-70 field space",
+    "Single player mode identifies the correct YOLO track by matching the user's drawn bounding box via IoU",
+    "PlayArea calibration mode allows user to draw a rectangle on the 2D field diagram indicating what area the video covers",
+    "PlayArea calibration produces a LinearFieldTransform that correctly maps pixel coordinates to the specified field region",
+    "All existing tests pass",
+    "Frontend builds without errors"
+  ],
+  "verification": [
+    "cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

@@ -12,7 +12,7 @@ import { ProcessingStatus } from '../components/ProcessingStatus';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { getVideo, startProcessing, getAnalysisStatus } from '../services/api';
 import { wsService } from '../services/websocket';
-import { AnalysisStatus, TrackingMode, TrackingResult, PlayerMetrics } from '../types';
+import { AnalysisStatus, TrackingMode, TrackingResult, PlayerMetrics, PlayArea } from '../types';
 
 /**
  * Transform raw backend results (from WebSocket/polling) into a TrackingResult
@@ -79,6 +79,7 @@ export const AnalysisPage: React.FC = () => {
   const [frameBlob, setFrameBlob] = useState<Blob | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [playArea, setPlayArea] = useState<PlayArea | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const wsUnsubRef = useRef<(() => void) | null>(null);
@@ -217,12 +218,28 @@ export const AnalysisPage: React.FC = () => {
 
     try {
       const playerIds = selectedPlayers.map((p) => p.id);
+
+      // Build player selection bounding boxes for target acquisition
+      const playerSelections = selectedPlayers.map((p) => ({
+        x: p.x,
+        y: p.y,
+        width: p.width,
+        height: p.height,
+      }));
+
       const config = {
         mode: trackingMode,
         calibration: calibration || undefined,
         target_player_ids:
           trackingMode === TrackingMode.SINGLE_PLAYER || trackingMode === TrackingMode.GROUP_TRACKING
             ? playerIds
+            : undefined,
+        // Pass play_area for linear field transform
+        play_area: playArea || undefined,
+        // Pass player selection bounding boxes for IoU-based target acquisition
+        player_selections:
+          (trackingMode === TrackingMode.SINGLE_PLAYER || trackingMode === TrackingMode.GROUP_TRACKING)
+            ? playerSelections
             : undefined,
       };
 
@@ -330,6 +347,7 @@ export const AnalysisPage: React.FC = () => {
             videoHeight={currentVideo?.height || 1080}
             containerWidth={640}
             containerHeight={360}
+            onPlayAreaChange={setPlayArea}
           />
         </div>
 

@@ -1,11 +1,14 @@
-"""Homography-based coordinate transformation between pixel and field space.
+"""Coordinate transformation between pixel and field space.
 
 Maps pixel coordinates from video frames to real-world rugby field coordinates
-in meters using a 3x3 homography matrix computed from point correspondences.
+in meters. Supports:
+- HomographyTransform: 3x3 homography matrix from point correspondences
+- LinearFieldTransform: Simple linear mapping from a play area rectangle
+- DefaultFieldTransform: Assumes visible frame covers approximately 60m x 40m
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Protocol
 
 import cv2
 import numpy as np
@@ -14,6 +17,126 @@ import numpy as np
 # Rugby field dimensions in meters
 FIELD_LENGTH_M = 100.0
 FIELD_WIDTH_M = 70.0
+
+# Default visible field area (typical broadcast camera view)
+DEFAULT_VISIBLE_LENGTH_M = 60.0
+DEFAULT_VISIBLE_WIDTH_M = 40.0
+
+
+class FieldTransform(Protocol):
+    """Protocol for any coordinate transform from pixel to field space."""
+
+    def pixel_to_field(self, x: float, y: float) -> tuple[float, float]:
+        """Transform pixel coordinates to field coordinates."""
+        ...
+
+
+class DefaultFieldTransform:
+    """Default pixel-to-field transform when no calibration is available.
+
+    Assumes the visible video frame covers approximately 60m x 40m of the field,
+    centered around the midfield area. Linearly maps pixel coordinates to field
+    meters.
+
+    Args:
+        frame_width: Video frame width in pixels.
+        frame_height: Video frame height in pixels.
+        field_length: Assumed visible field length in meters (default 60m).
+        field_width: Assumed visible field width in meters (default 40m).
+        field_offset_x: X offset on the field in meters (default 20m, centering 60m view on 100m field).
+        field_offset_y: Y offset on the field in meters (default 15m, centering 40m view on 70m field).
+    """
+
+    def __init__(
+        self,
+        frame_width: float = 1920.0,
+        frame_height: float = 1080.0,
+        field_length: float = DEFAULT_VISIBLE_LENGTH_M,
+        field_width: float = DEFAULT_VISIBLE_WIDTH_M,
+        field_offset_x: float = 20.0,
+        field_offset_y: float = 15.0,
+    ):
+        self.frame_width = frame_width
+        self.frame_height = frame_height
+        self.field_length = field_length
+        self.field_width = field_width
+        self.field_offset_x = field_offset_x
+        self.field_offset_y = field_offset_y
+
+    def pixel_to_field(self, x: float, y: float) -> tuple[float, float]:
+        """Transform pixel coordinates to field coordinates.
+
+        Maps pixel (x, y) linearly to a region of the field.
+
+        Args:
+            x: Pixel X coordinate.
+            y: Pixel Y coordinate.
+
+        Returns:
+            Tuple of (field_x, field_y) in meters, clamped to field bounds.
+        """
+        fx = (x / self.frame_width) * self.field_length + self.field_offset_x
+        fy = (y / self.frame_height) * self.field_width + self.field_offset_y
+
+        # Clamp to valid field bounds
+        fx = max(0.0, min(FIELD_LENGTH_M, fx))
+        fy = max(0.0, min(FIELD_WIDTH_M, fy))
+
+        return (fx, fy)
+
+
+class LinearFieldTransform:
+    """Linear pixel-to-field transform based on a user-defined play area.
+
+    The user draws a rectangle on the 2D field diagram indicating which part
+    of the field is visible in the video. This transform linearly maps pixel
+    coordinates to that field region.
+
+    Args:
+        frame_width: Video frame width in pixels.
+        frame_height: Video frame height in pixels.
+        field_x_min: Left edge of the play area on the field (meters, 0-100).
+        field_x_max: Right edge of the play area on the field (meters, 0-100).
+        field_y_min: Top edge of the play area on the field (meters, 0-70).
+        field_y_max: Bottom edge of the play area on the field (meters, 0-70).
+    """
+
+    def __init__(
+        self,
+        frame_width: float = 1920.0,
+        frame_height: float = 1080.0,
+        field_x_min: float = 20.0,
+        field_x_max: float = 80.0,
+        field_y_min: float = 10.0,
+        field_y_max: float = 60.0,
+    ):
+        self.frame_width = frame_width
+        self.frame_height = frame_height
+        self.field_x_min = field_x_min
+        self.field_x_max = field_x_max
+        self.field_y_min = field_y_min
+        self.field_y_max = field_y_max
+
+    def pixel_to_field(self, x: float, y: float) -> tuple[float, float]:
+        """Transform pixel coordinates to field coordinates.
+
+        Linearly maps pixels to the user-defined field rectangle.
+
+        Args:
+            x: Pixel X coordinate.
+            y: Pixel Y coordinate.
+
+        Returns:
+            Tuple of (field_x, field_y) in meters, clamped to field bounds.
+        """
+        fx = (x / self.frame_width) * (self.field_x_max - self.field_x_min) + self.field_x_min
+        fy = (y / self.frame_height) * (self.field_y_max - self.field_y_min) + self.field_y_min
+
+        # Clamp to valid field bounds
+        fx = max(0.0, min(FIELD_LENGTH_M, fx))
+        fy = max(0.0, min(FIELD_WIDTH_M, fy))
+
+        return (fx, fy)
 
 
 @dataclass

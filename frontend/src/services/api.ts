@@ -1,5 +1,5 @@
 import axios, { AxiosProgressEvent } from 'axios';
-import { AIProvider, CalibrationPoint, TrackingMode, Video, TrackingResult, FieldCalibration } from '../types';
+import { AIProvider, CalibrationPoint, TrackingMode, Video, TrackingResult, FieldCalibration, PlayArea } from '../types';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -34,7 +34,13 @@ export async function getVideo(id: string): Promise<Video> {
 
 export async function startProcessing(
   videoId: string,
-  config: { mode: TrackingMode; calibration?: FieldCalibration; target_player_ids?: string[] }
+  config: {
+    mode: TrackingMode;
+    calibration?: FieldCalibration;
+    target_player_ids?: string[];
+    play_area?: PlayArea;
+    player_selections?: { x: number; y: number; width: number; height: number }[];
+  }
 ): Promise<{ session_id: string }> {
   const response = await apiClient.post(`/video/${videoId}/process`, config);
   return response.data;

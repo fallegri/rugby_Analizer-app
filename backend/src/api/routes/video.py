@@ -52,6 +52,8 @@ class ProcessRequest(BaseModel):
     calibration_id: Optional[str] = None
     calibration_points: Optional[list[dict]] = None
     calibration: Optional[dict] = None
+    play_area: Optional[dict] = None
+    player_selections: Optional[list[dict]] = None
 
 
 class ProcessingResult(BaseModel):
@@ -291,7 +293,37 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
 
         transform = None
         calibration_data = request.calibration
-        if calibration_data and isinstance(calibration_data, dict):
+
+        # Priority 1: play_area calibration (user draws rectangle on field diagram)
+        if request.play_area and isinstance(request.play_area, dict):
+            try:
+                from src.cv.transform import LinearFieldTransform
+
+                field_x_min = float(request.play_area.get("x_min", 20.0))
+                field_x_max = float(request.play_area.get("x_max", 80.0))
+                field_y_min = float(request.play_area.get("y_min", 10.0))
+                field_y_max = float(request.play_area.get("y_max", 60.0))
+
+                transform = LinearFieldTransform(
+                    frame_width=1920.0,
+                    frame_height=1080.0,
+                    field_x_min=field_x_min,
+                    field_x_max=field_x_max,
+                    field_y_min=field_y_min,
+                    field_y_max=field_y_max,
+                )
+                logger.info(
+                    f"[Session {session_id}] PlayArea transform initialized: "
+                    f"x=[{field_x_min}, {field_x_max}] y=[{field_y_min}, {field_y_max}]"
+                )
+            except Exception as pa_err:
+                logger.warning(
+                    f"[Session {session_id}] Could not create PlayArea transform: {pa_err}. "
+                    f"Will use default transform."
+                )
+
+        # Priority 2: point-based homography calibration
+        elif calibration_data and isinstance(calibration_data, dict):
             cal_points = calibration_data.get("points")
             if cal_points and len(cal_points) >= 4:
                 try:
@@ -318,8 +350,20 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
                 except Exception as cal_err:
                     logger.warning(
                         f"[Session {session_id}] Could not compute homography: {cal_err}. "
-                        f"Proceeding without coordinate transform."
+                        f"Will use default transform."
                     )
+
+        # Extract player selection bounding boxes for target acquisition
+        player_selection_boxes = []
+        if request.player_selections:
+            for sel in request.player_selections:
+                if isinstance(sel, dict) and "x" in sel and "y" in sel:
+                    player_selection_boxes.append({
+                        "x": float(sel.get("x", 0)),
+                        "y": float(sel.get("y", 0)),
+                        "width": float(sel.get("width", 0)),
+                        "height": float(sel.get("height", 0)),
+                    })
 
         video_processor = VideoProcessor(
             detector=detector,
@@ -327,6 +371,7 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
             transform=transform,
             tracking_strategy=tracking_strategy,
             analytics_engine=analytics_engine,
+            player_selection_boxes=player_selection_boxes,
         )
         logger.info(f"[Session {session_id}] CV pipeline initialized successfully")
 

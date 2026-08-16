@@ -111,6 +111,13 @@ export interface PlayerSelection {
   label: string;
 }
 
+export interface PlayArea {
+  x_min: number;
+  x_max: number;
+  y_min: number;
+  y_max: number;
+}
+
 export interface AnalysisRequest {
   video_id: string;
   mode: TrackingMode;
