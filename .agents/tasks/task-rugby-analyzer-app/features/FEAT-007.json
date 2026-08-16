@@ -6,7 +6,10 @@
   "steps": [
     "Modify backend/src/api/routes/analysis.py: Instantiate VideoProcessor with YOLOv8n detector, ByteTrack tracker, appropriate TrackingStrategy based on mode, and AnalyticsEngine. Wrap in try/except to catch model loading failures and return error to frontend.",
     "Modify backend/src/services/background_tasks.py: When video_processor is None, send WebSocket error before returning. Add detailed console logging at each processing stage (loading, detecting, tracking, calibrating, analytics, complete) with frame counts, percentages, and FPS.",
-    "Verify frontend AnalysisPage.tsx already handles WebSocket error type messages correctly (it does - no changes needed)."
+    "Verify frontend AnalysisPage.tsx already handles WebSocket error type messages correctly (it does - no changes needed).",
+    "Modify backend/src/api/routes/video.py: Unify the frontend-backend flow by making POST /api/video/{video_id}/process instantiate the full CV pipeline, start BackgroundTaskManager, and return session_id instead of ProcessingResult.",
+    "Update ProcessRequest model to accept frontend's payload (target_player_ids as strings, calibration as full object).",
+    "Add integration tests for the unified video process flow."
   ],
   "acceptance_criteria": [
     "VideoProcessor is properly instantiated with YOLODetector(yolov8n.pt), MultiObjectTracker, appropriate TrackingStrategy, and AnalyticsEngine",
@@ -14,6 +17,8 @@
     "When video_processor is None in background_tasks.py, a WebSocket error message is sent before marking the session failed",
     "Console logging shows phase name, current frame/total frames, percentage, and processing FPS",
     "Frontend displays error messages from WebSocket (already implemented, verified working)",
+    "POST /api/video/{video_id}/process returns { session_id } that frontend can use for WebSocket connection",
+    "The endpoint starts the BackgroundTaskManager with a real VideoProcessor",
     "All existing tests pass"
   ],
   "verification": [
@@ -21,5 +26,5 @@
     "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build"
   ],
   "blocked_reason": null,
-  "findings": "All 210 backend tests pass. Frontend build succeeds (TypeScript compilation verified). Frontend test runner (vitest) hangs under bun runtime in this sandbox but the frontend code was not modified (AnalysisPage.tsx already handles WebSocket error messages correctly). The VideoProcessor instantiation uses lazy YOLO model loading so it succeeds even without GPU; actual model loading happens at first frame detection. In test environment, the background task fails with FileNotFoundError since mock MP4 bytes are not real video files OpenCV can open, preserving the existing test behavior (status=failed)."
+  "findings": "All 215 backend tests pass (5 new integration tests added for the video process endpoint). Frontend build succeeds (TypeScript compilation verified). The core issue was that frontend's startProcessing() called POST /api/video/{videoId}/process but that endpoint only set status to ANALYZING and returned ProcessingResult without session_id. The real processing was in POST /api/analysis/start which frontend never called. Fixed by making the video process endpoint internally instantiate the full CV pipeline, start BackgroundTaskManager, and return { session_id }. The frontend code already handled session_id correctly and needed no changes."
 }
