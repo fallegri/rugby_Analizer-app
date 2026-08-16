@@ -146,6 +146,109 @@ async def start_analysis(request: StartAnalysisRequest, req: Request) -> dict[st
     if video_path:
         from src.api.websocket import manager as ws_manager
 
+        # Instantiate the CV pipeline components
+        video_processor = None
+        instantiation_error = None
+        try:
+            from src.cv.detector import YOLODetector
+            from src.cv.tracker import MultiObjectTracker
+            from src.cv.tracking_modes import (
+                BallCarrierStrategy,
+                BallOnlyStrategy,
+                GroupTrackingStrategy,
+                SinglePlayerStrategy,
+            )
+            from src.cv.analytics import AnalyticsEngine
+
+            logger.info(
+                f"[Session {session_id}] Initializing CV pipeline | "
+                f"Mode: {request.mode.value} | Video: {video_path}"
+            )
+
+            # Create detector with YOLOv8n (lightweight, GTX 1060 compatible)
+            detector = YOLODetector(
+                model_path="yolov8n.pt",
+                confidence_threshold=0.25,
+                device="auto",
+            )
+
+            # Create ByteTrack-style tracker
+            tracker = MultiObjectTracker(
+                iou_threshold=0.3,
+                max_age=30,
+                min_hits=3,
+            )
+
+            # Select tracking strategy based on mode
+            strategy_map = {
+                TrackingMode.SINGLE_PLAYER: SinglePlayerStrategy,
+                TrackingMode.BALL_CARRIER: BallCarrierStrategy,
+                TrackingMode.BALL_ONLY: BallOnlyStrategy,
+                TrackingMode.GROUP_TRACKING: GroupTrackingStrategy,
+            }
+            strategy_class = strategy_map.get(request.mode, SinglePlayerStrategy)
+            tracking_strategy = strategy_class()
+
+            # Create analytics engine (FPS will be updated during processing)
+            analytics_engine = AnalyticsEngine(fps=30.0)
+
+            # Assemble the VideoProcessor (transform is optional, requires calibration)
+            from src.cv.video_processor import VideoProcessor
+
+            transform = None
+            if calibration and calibration.points and len(calibration.points) >= 4:
+                try:
+                    from src.cv.transform import HomographyTransform
+                    import numpy as np
+                    import cv2
+
+                    # Build homography from calibration points
+                    # Points are (pixel_x, pixel_y, field_x, field_y) tuples
+                    src_pts = np.array(
+                        [[p[0], p[1]] for p in calibration.points[:4]], dtype=np.float64
+                    )
+                    dst_pts = np.array(
+                        [[p[2], p[3]] for p in calibration.points[:4]], dtype=np.float64
+                    )
+                    matrix, _ = cv2.findHomography(src_pts, dst_pts)
+                    if matrix is not None:
+                        transform = HomographyTransform(matrix)
+                        logger.info(f"[Session {session_id}] Homography transform initialized from calibration")
+                except Exception as cal_err:
+                    logger.warning(
+                        f"[Session {session_id}] Could not compute homography: {cal_err}. "
+                        f"Proceeding without coordinate transform."
+                    )
+
+            video_processor = VideoProcessor(
+                detector=detector,
+                tracker=tracker,
+                transform=transform,
+                tracking_strategy=tracking_strategy,
+                analytics_engine=analytics_engine,
+            )
+            logger.info(f"[Session {session_id}] CV pipeline initialized successfully")
+
+        except Exception as e:
+            instantiation_error = str(e)
+            logger.error(
+                f"[Session {session_id}] Failed to initialize CV pipeline: {instantiation_error}",
+                exc_info=True,
+            )
+
+        # If instantiation failed, send error via WebSocket immediately
+        if instantiation_error and video_processor is None:
+            service.mark_failed(session_id, f"CV pipeline initialization failed: {instantiation_error}")
+            await ws_manager.send_message(
+                session_id,
+                {
+                    "type": "error",
+                    "session_id": session_id,
+                    "error": f"No se pudo inicializar el procesador de video: {instantiation_error}",
+                },
+            )
+            return {"session_id": session_id}
+
         await background_task_manager.start_processing(
             session_id=session_id,
             video_path=video_path,
@@ -153,7 +256,7 @@ async def start_analysis(request: StartAnalysisRequest, req: Request) -> dict[st
             target_ids=[int(p.get("player_id", 0)) for p in request.players if "player_id" in p],
             analysis_service=service,
             ws_manager=ws_manager,
-            video_processor=None,  # VideoProcessor not instantiated in MVP without GPU
+            video_processor=video_processor,
         )
 
     return {"session_id": session_id}

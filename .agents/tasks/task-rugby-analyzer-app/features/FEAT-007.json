@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-007",
+  "type": "fix",
+  "description": "Fix VideoProcessor instantiation and error propagation: Instantiate a real VideoProcessor with YOLODetector, MultiObjectTracker, TrackingStrategy, and AnalyticsEngine in the start_analysis endpoint. Send WebSocket error messages when processing fails (including when video_processor is None). Add detailed console logging with phase, frame, percentage, and FPS during processing.",
+  "status": "in_progress",
+  "steps": [
+    "Modify backend/src/api/routes/analysis.py: Instantiate VideoProcessor with YOLOv8n detector, ByteTrack tracker, appropriate TrackingStrategy based on mode, and AnalyticsEngine. Wrap in try/except to catch model loading failures and return error to frontend.",
+    "Modify backend/src/services/background_tasks.py: When video_processor is None, send WebSocket error before returning. Add detailed console logging at each processing stage (loading, detecting, tracking, calibrating, analytics, complete) with frame counts, percentages, and FPS.",
+    "Verify frontend AnalysisPage.tsx already handles WebSocket error type messages correctly (it does - no changes needed)."
+  ],
+  "acceptance_criteria": [
+    "VideoProcessor is properly instantiated with YOLODetector(yolov8n.pt), MultiObjectTracker, appropriate TrackingStrategy, and AnalyticsEngine",
+    "If VideoProcessor instantiation fails (e.g., model not loadable, missing dependencies), the error is caught and sent via WebSocket to frontend",
+    "When video_processor is None in background_tasks.py, a WebSocket error message is sent before marking the session failed",
+    "Console logging shows phase name, current frame/total frames, percentage, and processing FPS",
+    "Frontend displays error messages from WebSocket (already implemented, verified working)",
+    "All existing tests pass"
+  ],
+  "verification": [
+    "cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

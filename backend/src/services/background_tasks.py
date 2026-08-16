@@ -93,7 +93,18 @@ class BackgroundTaskManager:
         """
         try:
             if video_processor is None:
-                analysis_service.mark_failed(session_id, "No video processor available")
+                error_msg = "No video processor available - CV pipeline not initialized"
+                logger.error(f"[Session {session_id}] FAILED: {error_msg}")
+                analysis_service.mark_failed(session_id, error_msg)
+                if ws_manager:
+                    await ws_manager.send_message(
+                        session_id,
+                        {
+                            "type": "error",
+                            "session_id": session_id,
+                            "error": error_msg,
+                        },
+                    )
                 return
 
             # Track timing for progress reporting
@@ -102,6 +113,11 @@ class BackgroundTaskManager:
             last_broadcast_frame = 0
             current_stage = STAGE_LOADING
             broadcast_interval = 0.5  # Send updates every 500ms max
+
+            logger.info(
+                f"[Session {session_id}] Stage: {STAGE_LOADING} | "
+                f"Video: {video_path} | Mode: {mode}"
+            )
 
             # Notify loading stage
             if ws_manager:
@@ -134,6 +150,7 @@ class BackgroundTaskManager:
 
                 # Determine current stage based on progress
                 progress_pct = (current_frame / total_frames * 100.0) if total_frames > 0 else 0.0
+                prev_stage = current_stage
                 if progress_pct < 5:
                     current_stage = STAGE_LOADING
                 elif progress_pct < 40:
@@ -157,6 +174,21 @@ class BackgroundTaskManager:
                     eta = avg_time_per_frame * remaining_frames
                 else:
                     eta = 0.0
+
+                # Log stage transitions
+                if prev_stage != current_stage:
+                    logger.info(
+                        f"[Session {session_id}] Stage: {current_stage} | "
+                        f"Frame {current_frame}/{total_frames} | "
+                        f"{progress_pct:.1f}% | FPS: {processing_fps:.1f}"
+                    )
+
+                # Log progress every broadcast interval
+                logger.debug(
+                    f"[Session {session_id}] Progress: {current_frame}/{total_frames} "
+                    f"({progress_pct:.1f}%) | Stage: {current_stage} | "
+                    f"FPS: {processing_fps:.1f} | Elapsed: {elapsed:.1f}s | ETA: {eta:.1f}s"
+                )
 
                 last_broadcast_time = now
                 last_broadcast_frame = current_frame
@@ -186,6 +218,10 @@ class BackgroundTaskManager:
                         pass  # Event loop not available (e.g. during tests)
 
             # Run the synchronous video processing in a thread pool
+            logger.info(
+                f"[Session {session_id}] Starting video processing in thread pool | "
+                f"Video: {video_path} | Mode: {mode} | Targets: {target_ids}"
+            )
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None,
@@ -231,16 +267,35 @@ class BackgroundTaskManager:
                     },
                 )
 
-            logger.info(f"Completed processing for session: {session_id}")
+            total_elapsed = time.time() - start_time
+            logger.info(
+                f"[Session {session_id}] Stage: {STAGE_COMPLETE} | "
+                f"Frames: {result.total_frames} | Duration: {result.duration_s:.1f}s | "
+                f"Processing time: {total_elapsed:.1f}s | "
+                f"Avg FPS: {result.total_frames / total_elapsed:.1f}" if total_elapsed > 0 else
+                f"[Session {session_id}] Stage: {STAGE_COMPLETE} | Frames: {result.total_frames}"
+            )
 
         except asyncio.CancelledError:
             analysis_service.mark_failed(session_id, "Task cancelled")
-            logger.info(f"Task cancelled for session: {session_id}")
+            logger.warning(f"[Session {session_id}] CANCELLED by user request")
+            if ws_manager:
+                await ws_manager.send_message(
+                    session_id,
+                    {
+                        "type": "error",
+                        "session_id": session_id,
+                        "error": "Processing was cancelled",
+                    },
+                )
             raise
         except Exception as e:
             error_msg = str(e)
             analysis_service.mark_failed(session_id, error_msg)
-            logger.error(f"Processing failed for session {session_id}: {error_msg}")
+            logger.error(
+                f"[Session {session_id}] FAILED: {error_msg}",
+                exc_info=True,
+            )
 
             if ws_manager:
                 await ws_manager.send_message(
