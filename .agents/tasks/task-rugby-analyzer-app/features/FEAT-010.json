@@ -2,7 +2,7 @@
   "id": "FEAT-010",
   "type": "fix",
   "description": "Fix 4 interconnected bugs: 1) 430km distance (pixels treated as meters without calibration), 2) FieldView shows nothing (route points in pixel space), 3) Single player mode fails (timestamp-based IDs vs integer track IDs), 4) Manual calibration needs simpler PlayArea approach.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Add LinearFieldTransform class to backend/src/cv/transform.py for simple rectangle-based field mapping",
     "Modify backend/src/cv/video_processor.py: Add default pixel-to-field normalization (60m x 40m) when no transform is provided, store frame dimensions, add target acquisition phase for single player",
@@ -27,5 +27,5 @@
     "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All 215 backend tests pass. All 30 frontend tests pass. Frontend builds successfully (chunk size warning is pre-existing). The DefaultFieldTransform assumes 60m x 40m visible area centered on the field (offset 20m, 15m). The LinearFieldTransform maps pixel coords to a user-specified rectangle on the field. Target acquisition uses IoU >= 0.2 threshold over first 10 frames. The PlayArea calibration tab (Zona de Juego) is now the default tab in FieldCalibration component."
 }
