@@ -63,6 +63,22 @@ export async function getAnalysisStatus(
   return response.data;
 }
 
+// Analysis results endpoint (fetches full results when status is completed)
+export async function getAnalysisResults(
+  sessionId: string
+): Promise<{ session_id: string; video_id: string; mode: string; status: string; results: Record<string, unknown> | null }> {
+  const response = await apiClient.get(`/analysis/${sessionId}/results`);
+  return response.data;
+}
+
+// Analysis export endpoint (returns full JSON for download)
+export async function getAnalysisExport(
+  sessionId: string
+): Promise<Record<string, unknown>> {
+  const response = await apiClient.get(`/analysis/${sessionId}/export`);
+  return response.data;
+}
+
 // AI endpoints
 export async function listProviders(): Promise<{ providers: AIProvider[] }> {
   const response = await apiClient.get('/ai/providers');

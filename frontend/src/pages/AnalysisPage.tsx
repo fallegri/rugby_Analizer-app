@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Play, Loader2 } from 'lucide-react';
+import { Play, Loader2, Download } from 'lucide-react';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { PlayerSelector } from '../components/PlayerSelector';
 import { FieldCalibration } from '../components/FieldCalibration';
@@ -10,7 +10,7 @@ import { AIChat } from '../components/AIChat';
 import { TrackingModeSelector } from '../components/TrackingModeSelector';
 import { ProcessingStatus } from '../components/ProcessingStatus';
 import { useAnalysisStore } from '../stores/analysisStore';
-import { getVideo, startProcessing, getAnalysisStatus } from '../services/api';
+import { getVideo, startProcessing, getAnalysisStatus, getAnalysisResults, getAnalysisExport } from '../services/api';
 import { wsService } from '../services/websocket';
 import { AnalysisStatus, TrackingMode, TrackingResult, PlayerMetrics, PlayArea } from '../types';
 
@@ -68,6 +68,7 @@ export const AnalysisPage: React.FC = () => {
     calibration,
     processingStatus,
     results,
+    sessionId: storeSessionId,
     setVideo,
     updateProgress,
     updateProcessingDetails,
@@ -124,6 +125,21 @@ export const AnalysisPage: React.FC = () => {
         if (statusData.status === 'completed') {
           setProcessingStatus(AnalysisStatus.COMPLETED);
           stopPolling();
+          // Fetch full results from the REST endpoint as fallback
+          try {
+            const resultsData = await getAnalysisResults(sessionId);
+            if (resultsData.results) {
+              const transformed = transformBackendResults(
+                resultsData.results as Record<string, unknown>,
+                sessionId,
+                videoId || '',
+                trackingMode
+              );
+              setResults(transformed);
+            }
+          } catch {
+            // Results fetch failed - results may have already been set via WebSocket
+          }
         } else if (statusData.status === 'failed') {
           setProcessingStatus(AnalysisStatus.FAILED);
           setError('Processing failed on backend');
@@ -133,7 +149,7 @@ export const AnalysisPage: React.FC = () => {
         // Polling errors are non-fatal, WebSocket may still work
       }
     }, 2000);
-  }, [updateProgress, updateProcessingDetails, setProcessingStatus]);
+  }, [updateProgress, updateProcessingDetails, setProcessingStatus, setResults, videoId, trackingMode]);
 
   const stopPolling = () => {
     if (pollingRef.current) {
@@ -275,6 +291,25 @@ export const AnalysisPage: React.FC = () => {
     handleStartProcessing();
   };
 
+  const handleExport = async () => {
+    const sid = storeSessionId || sessionIdRef.current;
+    if (!sid) return;
+    try {
+      const exportData = await getAnalysisExport(sid);
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analysis_${sid}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Failed to export analysis');
+    }
+  };
+
   const handleFrameCapture = (blob: Blob) => {
     setFrameBlob(blob);
   };
@@ -307,6 +342,15 @@ export const AnalysisPage: React.FC = () => {
               )}
               {isStarting ? 'Starting...' : 'Start Analysis'}
             </button>
+            {processingStatus === AnalysisStatus.COMPLETED && results && (
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
+              >
+                <Download className="w-4 h-4" />
+                Exportar Análisis
+              </button>
+            )}
           </div>
         </div>
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}

@@ -321,6 +321,50 @@ async def get_analysis_results(session_id: str, req: Request) -> AnalysisResults
     return AnalysisResultsResponse(**results)
 
 
+@router.get("/{session_id}/export")
+async def export_analysis(session_id: str, req: Request) -> dict[str, Any]:
+    """Export completed analysis results as a downloadable JSON payload.
+
+    Returns the full analysis data including player metrics, routes,
+    speeds, distances, and sprints in a format suitable for download.
+
+    Args:
+        session_id: The analysis session UUID.
+        req: FastAPI request object for accessing app state.
+
+    Returns:
+        Full analysis export data.
+
+    Raises:
+        HTTPException: If session not found or not complete.
+    """
+    service = req.app.state.analysis_service
+
+    try:
+        results = service.get_results(session_id)
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session '{session_id}' not found",
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Build export payload with all analysis data
+    export_data: dict[str, Any] = {
+        "session_id": results.get("session_id", session_id),
+        "video_id": results.get("video_id", ""),
+        "mode": results.get("mode", ""),
+        "status": results.get("status", ""),
+        "results": results.get("results"),
+    }
+
+    return export_data
+
+
 @router.post("/{session_id}/ai-query", response_model=AIQueryResponse)
 async def ai_query(session_id: str, request: AIQueryRequest, req: Request) -> AIQueryResponse:
     """Query AI about analysis results with context injection.

@@ -12,6 +12,7 @@ export class WebSocketService {
   private maxReconnectAttempts = 10;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private shouldReconnect = false;
+  private keepaliveInterval: ReturnType<typeof setInterval> | null = null;
 
   connect(sessionId: string): void {
     // In development, Vite runs on port 5173 but the backend WebSocket is on port 8000.
@@ -74,6 +75,7 @@ export class WebSocketService {
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
       this.notifyStatus(true);
+      this.startKeepalive();
     };
 
     this.ws.onmessage = (event: MessageEvent) => {
@@ -86,6 +88,7 @@ export class WebSocketService {
     };
 
     this.ws.onclose = () => {
+      this.stopKeepalive();
       this.notifyStatus(false);
       if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.scheduleReconnect();
@@ -105,8 +108,25 @@ export class WebSocketService {
     }, delay);
   }
 
+  private startKeepalive(): void {
+    this.stopKeepalive();
+    this.keepaliveInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 15000);
+  }
+
+  private stopKeepalive(): void {
+    if (this.keepaliveInterval) {
+      clearInterval(this.keepaliveInterval);
+      this.keepaliveInterval = null;
+    }
+  }
+
   disconnect(): void {
     this.shouldReconnect = false;
+    this.stopKeepalive();
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;

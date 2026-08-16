@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-011",
+  "type": "fix",
+  "description": "Fix WebSocket disconnect loop, add polling results fetch fallback, add WebSocket keepalive ping, and add export analysis endpoint + UI button.",
+  "status": "in_progress",
+  "steps": [
+    "Add getAnalysisResults(sessionId) and getAnalysisExport(sessionId) functions to frontend/src/services/api.ts",
+    "Add WebSocket keepalive ping (send {type:'ping'} every 15s) to frontend/src/services/websocket.ts",
+    "In AnalysisPage.tsx startPolling callback, when statusData.status === 'completed': call getAnalysisResults, transform with transformBackendResults, set results in store",
+    "Add GET /api/analysis/{session_id}/export endpoint to backend/src/api/routes/analysis.py returning full JSON",
+    "Add 'Exportar Analisis' button in AnalysisPage.tsx that appears after completion and triggers JSON download via getAnalysisExport"
+  ],
+  "acceptance_criteria": [
+    "WebSocket sends keepalive ping every 15 seconds to prevent idle disconnects",
+    "When polling detects status='completed', frontend fetches full results from /api/analysis/{session_id}/results and displays them",
+    "Backend has GET /api/analysis/{session_id}/export endpoint that returns all player metrics as downloadable JSON",
+    "Frontend shows 'Exportar Analisis' button when analysis completes",
+    "Clicking the export button downloads a JSON file with all analysis data",
+    "All existing tests pass",
+    "Frontend builds without errors"
+  ],
+  "verification": [
+    "cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}
