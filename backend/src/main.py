@@ -8,7 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.middleware import RateLimitMiddleware, RequestValidationMiddleware
 from src.api.routes.ai import router as ai_router
+from src.api.routes.calibration import router as calibration_router
 from src.api.routes.health import router as health_router
+from src.api.routes.video import router as video_router
 from src.api.websocket import router as ws_router
 from src.config.settings import get_settings
 
@@ -73,6 +75,8 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(health_router)
     app.include_router(ai_router)
+    app.include_router(video_router)
+    app.include_router(calibration_router)
     app.include_router(ws_router)
 
     return app
