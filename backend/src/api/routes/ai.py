@@ -40,10 +40,16 @@ class SwitchProviderRequest(BaseModel):
 
 
 class UpdateConfigRequest(BaseModel):
-    """Request to update AI provider configuration."""
+    """Request to update AI provider configuration (single provider)."""
 
     provider: AIProvider
     api_key: str = Field(..., min_length=1)
+
+
+class BatchUpdateConfigRequest(BaseModel):
+    """Request to update API keys for multiple providers at once."""
+
+    keys: dict[str, str] = Field(..., description="Mapping of provider name to API key")
 
 
 class ProviderInfo(BaseModel):
@@ -137,10 +143,45 @@ async def switch_provider(
 
 @router.put("/config")
 async def update_config(
+    request: BatchUpdateConfigRequest,
+    factory: AIProviderFactory = Depends(get_provider_factory),
+):
+    """Update API keys for one or more AI providers at runtime.
+
+    Accepts a dictionary mapping provider names to API keys.
+    This allows the frontend to save all keys in a single request.
+
+    Args:
+        request: Contains a mapping of provider names to API keys.
+
+    Returns:
+        Confirmation with the list of updated providers.
+    """
+    updated = []
+    errors = []
+    for provider_name, api_key in request.keys.items():
+        if not api_key:
+            continue
+        try:
+            provider_enum = AIProvider(provider_name)
+            factory.update_provider_key(provider_enum, api_key)
+            updated.append(provider_name)
+        except ValueError as e:
+            errors.append({"provider": provider_name, "error": str(e)})
+
+    return {
+        "message": f"API keys updated for: {', '.join(updated)}" if updated else "No keys updated",
+        "updated": updated,
+        "errors": errors,
+    }
+
+
+@router.put("/config/single")
+async def update_config_single(
     request: UpdateConfigRequest,
     factory: AIProviderFactory = Depends(get_provider_factory),
 ):
-    """Update the API key for a specific AI provider at runtime.
+    """Update the API key for a single AI provider at runtime.
 
     Args:
         request: Contains the provider and new API key.

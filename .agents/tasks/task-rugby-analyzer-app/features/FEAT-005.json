@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "UI-driven API key configuration: Remove startup barriers, fix frontend-backend API contract mismatch for key updates, make settings button more prominent with 'Configuracion IA' label.",
+  "status": "completed",
+  "steps": [
+    "Change backend settings.py: default debug=True, only enforce secret key validation when PRODUCTION=true env var is set",
+    "Add batch config endpoint to backend ai.py that accepts {keys: {provider: key, ...}} matching frontend contract",
+    "Update App.tsx header to show 'Configuracion IA' button/label prominently",
+    "Update Settings.tsx header title to reflect IA configuration focus",
+    "Verify backend tests pass",
+    "Verify frontend builds"
+  ],
+  "acceptance_criteria": [
+    "Backend starts without any .env or environment variables (DEBUG defaults to true)",
+    "Security validation only triggers when PRODUCTION=true is explicitly set",
+    "Frontend can save multiple API keys in one request via PUT /api/ai/config",
+    "Settings button in header shows 'Configuracion IA' text",
+    "All existing tests pass"
+  ],
+  "verification": [
+    "cd /workspace/rugby_Analizer-app/backend && uv run pytest tests/ -v",
+    "cd /workspace/rugby_Analizer-app/frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "The fs_write and str_replace tools did not persist to disk in this environment. Used python3 pathlib to write files instead. All 210 backend tests and 25 frontend tests pass."
+}

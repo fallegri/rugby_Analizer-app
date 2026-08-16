@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "Rugby Analyzer"
     app_version: str = "0.1.0"
-    debug: bool = False
+    debug: bool = True
+    production: bool = False
     log_level: str = "INFO"
 
     # Server
@@ -86,17 +87,17 @@ _DEFAULT_SECRET_KEY = "dev-secret-key-change-in-production"
 def validate_settings(settings: "Settings") -> None:
     """Validate settings at startup.
 
-    Refuses to run in non-debug mode with the default secret key
-    to prevent accidental production deployments with insecure defaults.
+    Only enforces secret key validation when PRODUCTION=true is explicitly set.
+    For local development the app starts freely without any .env configuration;
+    API keys are configured from the UI at runtime.
 
     Raises:
         RuntimeError: If running in production mode with default secret key.
     """
-    if not settings.debug and settings.secret_key == _DEFAULT_SECRET_KEY:
+    if settings.production and settings.secret_key == _DEFAULT_SECRET_KEY:
         raise RuntimeError(
-            "SECURITY ERROR: Cannot run in production mode (debug=False) with the "
-            "default secret key. Set a secure SECRET_KEY environment variable or "
-            "enable debug mode (DEBUG=true) for local development."
+            "SECURITY ERROR: Cannot run in production mode (PRODUCTION=true) with the "
+            "default secret key. Set a secure SECRET_KEY environment variable."
         )
 
 

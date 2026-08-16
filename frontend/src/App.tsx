@@ -40,10 +40,11 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </button>
             <button
               onClick={() => setSettingsOpen(true)}
-              className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
-              title="Settings"
+              className="flex items-center gap-2 px-3 py-1.5 bg-rugby-gold/20 hover:bg-rugby-gold/30 border border-rugby-gold/50 rounded-lg transition-colors"
+              title="Configuración IA"
             >
-              <SettingsIcon className="w-5 h-5 text-gray-300" />
+              <SettingsIcon className="w-4 h-4 text-rugby-gold" />
+              <span className="text-sm font-medium text-rugby-gold hidden sm:inline">Configuración IA</span>
             </button>
           </div>
         </div>

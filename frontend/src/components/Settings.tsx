@@ -53,7 +53,7 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-gray-800 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-white">Settings</h2>
+          <h2 className="text-lg font-semibold text-white">Configuración IA</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-700 rounded">
             <X className="w-5 h-5 text-gray-400" />
           </button>
@@ -126,7 +126,7 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
             className="w-full py-2 bg-rugby-gold text-white font-medium rounded-lg hover:bg-rugby-gold/80 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Save className="w-4 h-4" />
-            {isSaving ? 'Saving...' : 'Save Settings'}
+            {isSaving ? 'Guardando...' : 'Guardar Configuración'}
           </button>
         </div>
       </div>
