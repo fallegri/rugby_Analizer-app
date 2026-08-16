@@ -195,11 +195,13 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
 
     video = _videos[video_id]
 
-    if video["status"] not in (VideoStatus.UPLOADED, VideoStatus.COMPLETED):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Video is currently in state '{video['status']}' and cannot be reprocessed",
+    # Allow re-processing from any state except if the video file is missing.
+    # If currently ANALYZING, reset to allow a fresh run.
+    if video["status"] == VideoStatus.ANALYZING:
+        logger.info(
+            f"Video {video_id} is currently ANALYZING - resetting for re-processing"
         )
+        video["status"] = VideoStatus.UPLOADED
 
     # Update status to processing
     video["status"] = VideoStatus.ANALYZING

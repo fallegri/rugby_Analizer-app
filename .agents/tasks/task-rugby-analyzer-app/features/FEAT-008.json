@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-008",
+  "type": "fix",
+  "description": "Fix end-to-end real-time progress display: WebSocket URL points to wrong port, race condition loses messages, no polling fallback, 409 prevents retry.",
+  "status": "in_progress",
+  "steps": [
+    "Fix WebSocket URL in frontend/src/services/websocket.ts to default to ws://localhost:8000 instead of ws://${window.location.host}",
+    "Fix race condition in frontend/src/pages/AnalysisPage.tsx: connect WebSocket FIRST, wait for open, THEN call startProcessing",
+    "Add getAnalysisStatus() to frontend/src/services/api.ts for REST polling",
+    "Add polling fallback in AnalysisPage.tsx: poll GET /api/analysis/{session_id}/status every 2 seconds",
+    "Remove 409 conflict in backend/src/api/routes/video.py: allow re-processing when in ANALYZING state by resetting to UPLOADED first",
+    "Verify build and tests pass"
+  ],
+  "acceptance_criteria": [
+    "WebSocket connects to backend port (8000) not frontend port (5173) in development",
+    "WebSocket is connected before processing starts so no progress messages are lost",
+    "Polling fallback fetches progress every 2 seconds as safety net",
+    "Video can be re-processed without 409 error even if status is ANALYZING",
+    "Frontend build succeeds",
+    "All existing tests pass"
+  ],
+  "verification": [
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run",
+    "cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

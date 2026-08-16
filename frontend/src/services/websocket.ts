@@ -14,11 +14,54 @@ export class WebSocketService {
   private shouldReconnect = false;
 
   connect(sessionId: string): void {
-    const wsBase = import.meta.env.VITE_WS_URL || `ws://${window.location.host}`;
+    // In development, Vite runs on port 5173 but the backend WebSocket is on port 8000.
+    // Use VITE_WS_URL env var or derive from VITE_API_URL, falling back to localhost:8000.
+    let wsBase = import.meta.env.VITE_WS_URL;
+    if (!wsBase) {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      if (apiUrl) {
+        // Derive WS URL from API URL (http://host:port/api -> ws://host:port)
+        const baseUrl = apiUrl.replace(/\/api\/?$/, '').replace(/^http/, 'ws');
+        wsBase = baseUrl;
+      } else {
+        // Default: backend runs on port 8000
+        wsBase = `ws://${window.location.hostname}:8000`;
+      }
+    }
     this.url = `${wsBase}/ws/analysis/${sessionId}`;
     this.shouldReconnect = true;
     this.reconnectAttempts = 0;
     this.createConnection();
+  }
+
+  /**
+   * Returns a promise that resolves when the WebSocket connection is open,
+   * or rejects if it fails to connect within the timeout.
+   */
+  waitForConnection(timeoutMs: number = 5000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        resolve();
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('WebSocket connection timeout'));
+      }, timeoutMs);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        unsub();
+      };
+
+      const unsub = this.onStatusChange((connected) => {
+        if (connected) {
+          cleanup();
+          resolve();
+        }
+      });
+    });
   }
 
   private createConnection(): void {

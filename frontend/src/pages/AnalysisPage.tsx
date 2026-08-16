@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Play, Loader2 } from 'lucide-react';
 import { VideoPlayer } from '../components/VideoPlayer';
@@ -10,7 +10,7 @@ import { AIChat } from '../components/AIChat';
 import { TrackingModeSelector } from '../components/TrackingModeSelector';
 import { ProcessingStatus } from '../components/ProcessingStatus';
 import { useAnalysisStore } from '../stores/analysisStore';
-import { getVideo, startProcessing } from '../services/api';
+import { getVideo, startProcessing, getAnalysisStatus } from '../services/api';
 import { wsService } from '../services/websocket';
 import { AnalysisStatus, TrackingMode } from '../types';
 
@@ -34,6 +34,9 @@ export const AnalysisPage: React.FC = () => {
   const [frameBlob, setFrameBlob] = useState<Blob | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const wsUnsubRef = useRef<(() => void) | null>(null);
 
   // Load video info
   useEffect(() => {
@@ -43,7 +46,57 @@ export const AnalysisPage: React.FC = () => {
       .catch(() => setError('Failed to load video information'));
   }, [videoId, setVideo]);
 
-  // WebSocket connection for progress
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopPolling();
+      wsService.disconnect();
+      if (wsUnsubRef.current) {
+        wsUnsubRef.current();
+        wsUnsubRef.current = null;
+      }
+    };
+  }, []);
+
+  // Start polling fallback for analysis status
+  const startPolling = useCallback((sessionId: string) => {
+    stopPolling();
+    pollingRef.current = setInterval(async () => {
+      try {
+        const statusData = await getAnalysisStatus(sessionId);
+        // Update progress from polling data
+        if (statusData.progress !== undefined) {
+          updateProgress(statusData.progress);
+        }
+        if (statusData.current_frame && statusData.total_frames) {
+          updateProcessingDetails({
+            currentFrame: statusData.current_frame,
+            totalFrames: statusData.total_frames,
+          });
+        }
+        // Check terminal states
+        if (statusData.status === 'completed') {
+          setProcessingStatus(AnalysisStatus.COMPLETED);
+          stopPolling();
+        } else if (statusData.status === 'failed') {
+          setProcessingStatus(AnalysisStatus.FAILED);
+          setError('Processing failed on backend');
+          stopPolling();
+        }
+      } catch {
+        // Polling errors are non-fatal, WebSocket may still work
+      }
+    }, 2000);
+  }, [updateProgress, updateProcessingDetails, setProcessingStatus]);
+
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
+
+  // WebSocket message handler setup
   const handleWebSocket = useCallback(() => {
     const unsubMessage = wsService.onMessage((msg) => {
       switch (msg.type) {
@@ -65,6 +118,7 @@ export const AnalysisPage: React.FC = () => {
           }
           if (msg.status === 'completed') {
             setProcessingStatus(AnalysisStatus.COMPLETED);
+            stopPolling();
           }
           break;
         case 'status':
@@ -76,11 +130,13 @@ export const AnalysisPage: React.FC = () => {
           if (msg.data?.result) {
             setResults(msg.data.result);
             setProcessingStatus(AnalysisStatus.COMPLETED);
+            stopPolling();
           }
           break;
         case 'error':
           setError(msg.data?.message || msg.error || 'Processing failed');
           setProcessingStatus(AnalysisStatus.FAILED);
+          stopPolling();
           break;
       }
     });
@@ -104,19 +160,25 @@ export const AnalysisPage: React.FC = () => {
             : undefined,
       };
 
+      // 1. First, call the API to start processing and get a session_id
       const response = await startProcessing(videoId, config);
-      setSessionId(response.session_id);
+      const sessionId = response.session_id;
+      setSessionId(sessionId);
+      sessionIdRef.current = sessionId;
       setProcessingStatus(AnalysisStatus.PROCESSING);
 
-      // Connect WebSocket for progress
-      wsService.connect(response.session_id);
-      const unsub = handleWebSocket();
+      // 2. Subscribe to WebSocket messages BEFORE connecting
+      if (wsUnsubRef.current) {
+        wsUnsubRef.current();
+      }
+      wsUnsubRef.current = handleWebSocket();
 
-      // Cleanup on unmount
-      return () => {
-        unsub();
-        wsService.disconnect();
-      };
+      // 3. Connect WebSocket to receive progress updates
+      wsService.connect(sessionId);
+
+      // 4. Start polling fallback immediately (catches messages lost during WS setup)
+      startPolling(sessionId);
+
     } catch {
       setError('Failed to start processing');
     } finally {
@@ -126,6 +188,7 @@ export const AnalysisPage: React.FC = () => {
 
   const handleRetry = () => {
     wsService.disconnect();
+    stopPolling();
     handleStartProcessing();
   };
 

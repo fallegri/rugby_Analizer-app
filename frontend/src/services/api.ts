@@ -49,6 +49,14 @@ export async function deleteVideo(videoId: string): Promise<void> {
   await apiClient.delete(`/video/${videoId}`);
 }
 
+// Analysis status polling endpoint
+export async function getAnalysisStatus(
+  sessionId: string
+): Promise<{ session_id: string; status: string; progress: number; current_frame: number; total_frames: number }> {
+  const response = await apiClient.get(`/analysis/${sessionId}/status`);
+  return response.data;
+}
+
 // AI endpoints
 export async function listProviders(): Promise<{ providers: AIProvider[] }> {
   const response = await apiClient.get('/ai/providers');

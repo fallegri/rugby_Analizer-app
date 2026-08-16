@@ -282,8 +282,8 @@ class TestVideoProcessEndpoint:
         assert process_response.status_code == 200
         assert "session_id" in process_response.json()
 
-    def test_process_cannot_reprocess_analyzing_video(self, client, mock_mp4_content):
-        """Test that a video already being analyzed cannot be reprocessed."""
+    def test_process_can_reprocess_analyzing_video(self, client, mock_mp4_content):
+        """Test that a video already being analyzed can be re-processed (no 409)."""
         upload_response = client.post(
             "/api/video/upload",
             files={"file": ("test.mp4", io.BytesIO(mock_mp4_content), "video/mp4")},
@@ -297,9 +297,10 @@ class TestVideoProcessEndpoint:
         )
         assert first_response.status_code == 200
 
-        # Second process call - should fail with 409 (already analyzing)
+        # Second process call - should also succeed (re-processing allowed)
         second_response = client.post(
             f"/api/video/{video_id}/process",
             json={"mode": "ball_only"},
         )
-        assert second_response.status_code == 409
+        assert second_response.status_code == 200
+        assert "session_id" in second_response.json()
