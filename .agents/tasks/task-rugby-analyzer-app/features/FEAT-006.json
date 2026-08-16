@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-006",
+  "type": "feat",
+  "description": "Enhanced processing status bar with stages, ETA, FPS, elapsed time, and stall detection. Backend sends detailed progress messages via WebSocket including stage name, timestamps, and FPS. Frontend shows a prominent ProcessingStatus component with visual progress bar, stage indicators, frame counter, elapsed/ETA times, and stall detection warnings.",
+  "status": "completed",
+  "steps": [
+    "Enhance backend broadcast_progress to include stage, timestamp, current_frame, total_frames, fps, elapsed_time, and eta fields",
+    "Modify background_tasks.py to track timing data and send rich progress messages with stages",
+    "Update frontend types to include enhanced WebSocket progress message fields",
+    "Enhance analysisStore.ts with stage, eta, elapsed, fps, lastUpdate fields",
+    "Create frontend ProcessingStatus.tsx component with progress bar, stage display, frame counter, timing, and stall detection",
+    "Integrate ProcessingStatus into AnalysisPage.tsx replacing the inline progress bar",
+    "Add tests for ProcessingStatus component"
+  ],
+  "acceptance_criteria": [
+    "Backend sends progress messages with stage, timestamp, current_frame, total_frames, fps, elapsed, eta",
+    "Frontend ProcessingStatus shows animated progress bar with percentage",
+    "Stage name is displayed with icon/indicator",
+    "Frame counter shows current/total frames",
+    "Elapsed time and ETA are displayed",
+    "Processing speed (FPS) is shown",
+    "Stall detector shows warning after 10s with no update",
+    "Stall detector shows error state after 30s with retry option",
+    "Color coding: green=working, yellow=slow, red=stalled",
+    "All existing tests pass",
+    "Frontend builds without errors"
+  ],
+  "verification": [
+    "cd /workspace/rugby_Analizer-app/backend && uv run pytest tests/ -v",
+    "cd /workspace/rugby_Analizer-app/frontend && npm run build",
+    "cd /workspace/rugby_Analizer-app/frontend && npm run test -- --run"
+  ],
+  "blocked_reason": null,
+  "findings": "The fs_write and str_replace tools had transient issues not persisting to disk - used bash heredocs instead. The components.test.tsx file requires vi.mock for konva/react-konva to avoid canvas dependency errors in jsdom. All tests pass: 210 backend, 30 frontend (5 new ProcessingStatus tests added)."
+}
