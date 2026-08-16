@@ -11,6 +11,7 @@ from uuid import uuid4
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
+from src.api.security import sanitize_filename, validate_file_upload
 from src.config.settings import get_settings
 from src.core.enums import TrackingMode, VideoStatus
 
@@ -58,35 +59,61 @@ class ProcessingResult(BaseModel):
 
 @router.post("/upload", response_model=VideoMetadata, status_code=status.HTTP_201_CREATED)
 async def upload_video(file: UploadFile = File(...)) -> VideoMetadata:
-    """Upload a video file for analysis."""
+    """Upload a video file for analysis.
+
+    Validates file format, magic bytes, and size, saves to the uploads directory,
+    and returns video metadata.
+
+    Args:
+        file: Multipart file upload.
+
+    Returns:
+        VideoMetadata with the saved video information.
+
+    Raises:
+        HTTPException: If file format is invalid or file is too large.
+    """
     settings = get_settings()
 
+    # Validate filename is present
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Filename is required",
         )
 
-    ext = os.path.splitext(file.filename)[1].lower()
+    # Sanitize filename
+    safe_name = sanitize_filename(file.filename)
+
+    # Validate extension
+    ext = os.path.splitext(safe_name)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file format. Allowed: mp4, avi, mov, mkv",
+            detail=f"Unsupported file format '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
         )
 
+    # Read file content
     content = await file.read()
     size_bytes = len(content)
 
-    max_size = settings.max_file_size_mb * 1024 * 1024
-    if size_bytes > max_size:
+    # Security validation (magic bytes, size, content type)
+    is_valid, error_msg = validate_file_upload(
+        content=content,
+        filename=safe_name,
+        content_type=file.content_type,
+    )
+    if not is_valid:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File size ({size_bytes} bytes) exceeds maximum ({max_size} bytes)",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg,
         )
 
+    # Create upload directory
     upload_dir = settings.upload_dir
     os.makedirs(upload_dir, exist_ok=True)
 
+    # Save file with unique name
     video_id = str(uuid4())
     safe_filename = f"{video_id}{ext}"
     file_path = os.path.join(upload_dir, safe_filename)
@@ -94,6 +121,7 @@ async def upload_video(file: UploadFile = File(...)) -> VideoMetadata:
     with open(file_path, "wb") as f:
         f.write(content)
 
+    # Store metadata
     video_data = {
         "id": video_id,
         "filename": file.filename,
