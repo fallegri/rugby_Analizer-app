@@ -2,7 +2,7 @@
   "id": "FEAT-011",
   "type": "fix",
   "description": "Fix WebSocket disconnect loop, add polling results fetch fallback, add WebSocket keepalive ping, and add export analysis endpoint + UI button.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Add getAnalysisResults(sessionId) and getAnalysisExport(sessionId) functions to frontend/src/services/api.ts",
     "Add WebSocket keepalive ping (send {type:'ping'} every 15s) to frontend/src/services/websocket.ts",
@@ -25,5 +25,5 @@
     "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All 215 backend tests pass. All 30 frontend tests pass. Frontend builds successfully. The WebSocket keepalive sends a ping every 15 seconds which the backend already handles (responds with pong). The polling fallback now fetches full results from GET /api/analysis/{session_id}/results using the existing service.get_results() method. The export endpoint reuses the same service method and returns the complete JSON payload."
 }
