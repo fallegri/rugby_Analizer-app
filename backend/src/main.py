@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.adapters.ai.provider_factory import AIProviderFactory
 from src.api.middleware import RateLimitMiddleware, RequestValidationMiddleware
 from src.api.routes.ai import router as ai_router
 from src.api.routes.analysis import router as analysis_router
@@ -13,7 +14,7 @@ from src.api.routes.calibration import router as calibration_router
 from src.api.routes.health import router as health_router
 from src.api.routes.video import router as video_router
 from src.api.websocket import router as ws_router
-from src.config.settings import get_settings
+from src.config.settings import get_settings, validate_settings
 from src.services.analysis_service import AnalysisService
 from src.services.background_tasks import BackgroundTaskManager
 
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     settings = get_settings()
+    validate_settings(settings)
     logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     logger.info(f"Default AI provider: {settings.default_ai_provider}")
@@ -86,6 +88,7 @@ def create_app() -> FastAPI:
     # Initialize services and attach to app state
     app.state.analysis_service = AnalysisService()
     app.state.background_task_manager = BackgroundTaskManager()
+    app.state.provider_factory = AIProviderFactory(settings)
 
     return app
 

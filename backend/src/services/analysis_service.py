@@ -22,7 +22,12 @@ class AnalysisService:
     """
 
     def __init__(self):
-        """Initialize analysis service with in-memory session storage."""
+        """Initialize analysis service with in-memory session storage.
+
+        TODO: MVP limitation - sessions are stored in-memory and lost on restart.
+        For production, persist sessions to SQLite/Postgres via the repository pattern.
+        Multi-worker deployments will also require shared state (Redis or database).
+        """
         self._sessions: dict[str, dict[str, Any]] = {}
 
     def start_analysis(self, request: AnalysisRequest) -> str:

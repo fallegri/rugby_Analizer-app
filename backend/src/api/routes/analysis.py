@@ -8,7 +8,7 @@ import logging
 from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from src.core.enums import AnalysisStatus, TrackingMode
@@ -79,7 +79,7 @@ class AIQueryResponse(BaseModel):
 
 
 @router.post("/start", status_code=status.HTTP_201_CREATED)
-async def start_analysis(request: StartAnalysisRequest) -> dict[str, str]:
+async def start_analysis(request: StartAnalysisRequest, req: Request) -> dict[str, str]:
     """Start a new analysis session.
 
     Creates a session, validates the request, and initiates
@@ -87,6 +87,7 @@ async def start_analysis(request: StartAnalysisRequest) -> dict[str, str]:
 
     Args:
         request: Analysis configuration.
+        req: FastAPI request object for accessing app state.
 
     Returns:
         Dict with session_id.
@@ -133,6 +134,28 @@ async def start_analysis(request: StartAnalysisRequest) -> dict[str, str]:
     )
 
     session_id = service.start_analysis(analysis_request)
+
+    # Start background processing via the BackgroundTaskManager
+    background_task_manager = req.app.state.background_task_manager
+    # Look up video path from the video routes in-memory store
+    from src.api.routes.video import _videos
+
+    video_data = _videos.get(request.video_id)
+    video_path = video_data.get("file_path") if video_data else None
+
+    if video_path:
+        from src.api.websocket import manager as ws_manager
+
+        await background_task_manager.start_processing(
+            session_id=session_id,
+            video_path=video_path,
+            mode=request.mode.value,
+            target_ids=[int(p.get("player_id", 0)) for p in request.players if "player_id" in p],
+            analysis_service=service,
+            ws_manager=ws_manager,
+            video_processor=None,  # VideoProcessor not instantiated in MVP without GPU
+        )
+
     return {"session_id": session_id}
 
 
@@ -194,7 +217,7 @@ async def get_analysis_results(session_id: str) -> AnalysisResultsResponse:
 
 
 @router.post("/{session_id}/ai-query", response_model=AIQueryResponse)
-async def ai_query(session_id: str, request: AIQueryRequest) -> AIQueryResponse:
+async def ai_query(session_id: str, request: AIQueryRequest, req: Request) -> AIQueryResponse:
     """Query AI about analysis results with context injection.
 
     Retrieves analysis data and injects it as context into the
@@ -203,6 +226,7 @@ async def ai_query(session_id: str, request: AIQueryRequest) -> AIQueryResponse:
     Args:
         session_id: The analysis session UUID.
         request: The AI query (prompt).
+        req: FastAPI request object for accessing app state.
 
     Returns:
         AI response with context indication.
@@ -240,12 +264,25 @@ async def ai_query(session_id: str, request: AIQueryRequest) -> AIQueryResponse:
             f"User Question: {request.prompt}"
         )
 
-    # For now, return a placeholder response since AI providers
-    # need real API keys to function. In production, this calls the AI provider.
-    response_text = (
-        f"Analysis query received for session {session_id}. "
-        f"Prompt: {request.prompt}"
-    )
+    # Call the AI provider through the singleton factory
+    try:
+        provider_factory = req.app.state.provider_factory
+        provider = provider_factory.get_provider()
+
+        if not provider.is_configured():
+            # Fallback to placeholder if provider is not configured
+            response_text = (
+                f"AI provider '{provider.get_provider_name()}' is not configured. "
+                f"Please set an API key. Query: {request.prompt}"
+            )
+        else:
+            response_text = await provider.analyze_play(enriched_prompt, context_str)
+    except Exception as e:
+        logger.warning(f"AI provider call failed for session {session_id}: {e}")
+        response_text = (
+            f"AI analysis unavailable: {str(e)}. "
+            f"Query received for session {session_id}: {request.prompt}"
+        )
 
     return AIQueryResponse(
         session_id=session_id,

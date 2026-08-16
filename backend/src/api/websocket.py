@@ -12,6 +12,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from src.api.security import (
+    rate_limit_websocket,
+    release_websocket_connection,
+    validate_websocket_origin,
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["websocket"])
@@ -117,6 +123,8 @@ async def websocket_analysis(websocket: WebSocket, session_id: str):
 
     Accepts connections for a specific analysis session and sends
     progress updates as JSON messages. Supports heartbeat pings.
+    Validates origin, enforces per-IP connection limits, and cleans
+    up connection slots on disconnect.
 
     Args:
         websocket: The WebSocket connection.
@@ -127,6 +135,20 @@ async def websocket_analysis(websocket: WebSocket, session_id: str):
         UUID(session_id)
     except ValueError:
         await websocket.close(code=4001, reason="Invalid session ID format")
+        return
+
+    # Validate origin
+    origin = websocket.headers.get("origin")
+    if not validate_websocket_origin(origin):
+        await websocket.close(code=4003, reason="Origin not allowed")
+        return
+
+    # Extract client IP for rate limiting
+    client_ip = websocket.client.host if websocket.client else "unknown"
+
+    # Enforce per-IP connection limit
+    if not rate_limit_websocket(client_ip):
+        await websocket.close(code=4029, reason="Too many connections")
         return
 
     await manager.connect(websocket, session_id)
@@ -174,7 +196,9 @@ async def websocket_analysis(websocket: WebSocket, session_id: str):
 
     except WebSocketDisconnect:
         manager.disconnect(websocket, session_id)
+        release_websocket_connection(client_ip)
         logger.info(f"Client disconnected from session: {session_id}")
     except Exception as e:
         logger.error(f"WebSocket error for session {session_id}: {e}")
         manager.disconnect(websocket, session_id)
+        release_websocket_connection(client_ip)

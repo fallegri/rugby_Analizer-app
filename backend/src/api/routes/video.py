@@ -1,14 +1,16 @@
 """Video management API endpoints.
 
 Handles video upload, metadata retrieval, processing initiation,
-results retrieval, and video deletion.
+results retrieval, video streaming, and video deletion.
 """
 
 import os
+import shutil
 from typing import Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from src.api.security import sanitize_filename, validate_file_upload
@@ -18,6 +20,8 @@ from src.core.enums import TrackingMode, VideoStatus
 router = APIRouter(prefix="/api/video", tags=["video"])
 
 # In-memory storage (replace with database in production)
+# TODO: MVP limitation - all video metadata is stored in-memory and lost on restart.
+# For production, persist to SQLite/Postgres via the repository pattern.
 _videos: dict[str, dict] = {}
 
 # Allowed video file extensions
@@ -139,11 +143,21 @@ async def upload_video(file: UploadFile = File(...)) -> VideoMetadata:
 
 @router.get("/{video_id}", response_model=VideoMetadata)
 async def get_video(video_id: str) -> VideoMetadata:
-    """Get video metadata and status."""
+    """Get video metadata and status.
+
+    Args:
+        video_id: UUID of the video.
+
+    Returns:
+        VideoMetadata for the requested video.
+
+    Raises:
+        HTTPException: If video is not found.
+    """
     if video_id not in _videos:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Video not found: {video_id}",
+            detail=f"Video '{video_id}' not found",
         )
 
     return VideoMetadata(**_videos[video_id])
@@ -151,11 +165,22 @@ async def get_video(video_id: str) -> VideoMetadata:
 
 @router.post("/{video_id}/process", response_model=ProcessingResult)
 async def process_video(video_id: str, request: ProcessRequest) -> ProcessingResult:
-    """Start processing a video with the specified tracking mode."""
+    """Start processing a video with the specified tracking mode.
+
+    Args:
+        video_id: UUID of the video to process.
+        request: Processing configuration (mode, targets, calibration).
+
+    Returns:
+        ProcessingResult with initial status.
+
+    Raises:
+        HTTPException: If video is not found or not in uploadable state.
+    """
     if video_id not in _videos:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Video not found: {video_id}",
+            detail=f"Video '{video_id}' not found",
         )
 
     video = _videos[video_id]
@@ -163,11 +188,14 @@ async def process_video(video_id: str, request: ProcessRequest) -> ProcessingRes
     if video["status"] not in (VideoStatus.UPLOADED, VideoStatus.COMPLETED):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Video cannot be reprocessed in current state",
+            detail=f"Video is currently in state '{video['status']}' and cannot be reprocessed",
         )
 
+    # Update status to processing
     video["status"] = VideoStatus.ANALYZING
 
+    # In a real implementation, this would queue a background task
+    # For now, return the processing status
     return ProcessingResult(
         video_id=video_id,
         status=VideoStatus.ANALYZING.value,
@@ -180,19 +208,28 @@ async def process_video(video_id: str, request: ProcessRequest) -> ProcessingRes
 
 @router.get("/{video_id}/results", response_model=ProcessingResult)
 async def get_results(video_id: str) -> ProcessingResult:
-    """Get analysis results for a processed video."""
+    """Get analysis results for a processed video.
+
+    Args:
+        video_id: UUID of the video.
+
+    Returns:
+        ProcessingResult with analysis data.
+
+    Raises:
+        HTTPException: If video is not found.
+    """
     if video_id not in _videos:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Video not found: {video_id}",
+            detail=f"Video '{video_id}' not found",
         )
 
     video = _videos[video_id]
-    vid_status = video["status"].value if isinstance(video["status"], VideoStatus) else video["status"]
 
     return ProcessingResult(
         video_id=video_id,
-        status=vid_status,
+        status=video["status"].value if isinstance(video["status"], VideoStatus) else video["status"],
         total_frames=video.get("total_frames"),
         fps=video.get("fps"),
         duration_s=video.get("duration_s"),
@@ -200,19 +237,77 @@ async def get_results(video_id: str) -> ProcessingResult:
     )
 
 
-@router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_video(video_id: str) -> None:
-    """Delete a video and its associated data."""
+@router.get("/{video_id}/stream")
+async def stream_video(video_id: str) -> FileResponse:
+    """Stream a video file for playback in the browser.
+
+    Serves the video file with appropriate content-type headers
+    for the HTML5 video element. Supports range requests via
+    FastAPI's FileResponse.
+
+    Args:
+        video_id: UUID of the video to stream.
+
+    Returns:
+        FileResponse serving the video file.
+
+    Raises:
+        HTTPException: If video is not found or file is missing.
+    """
     if video_id not in _videos:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Video not found: {video_id}",
+            detail=f"Video '{video_id}' not found",
+        )
+
+    video = _videos[video_id]
+    file_path = video.get("file_path")
+
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video file not found on disk for video '{video_id}'",
+        )
+
+    # Determine content type based on extension
+    ext = os.path.splitext(file_path)[1].lower()
+    content_type_map = {
+        ".mp4": "video/mp4",
+        ".avi": "video/x-msvideo",
+        ".mov": "video/quicktime",
+        ".mkv": "video/x-matroska",
+    }
+    media_type = content_type_map.get(ext, "application/octet-stream")
+
+    return FileResponse(
+        path=file_path,
+        media_type=media_type,
+        filename=video.get("filename", f"{video_id}{ext}"),
+    )
+
+
+@router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_video(video_id: str) -> None:
+    """Delete a video and its associated data.
+
+    Args:
+        video_id: UUID of the video to delete.
+
+    Raises:
+        HTTPException: If video is not found.
+    """
+    if video_id not in _videos:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video '{video_id}' not found",
         )
 
     video = _videos[video_id]
 
+    # Delete the file if it exists
     file_path = video.get("file_path")
     if file_path and os.path.exists(file_path):
         os.remove(file_path)
 
+    # Remove from storage
     del _videos[video_id]

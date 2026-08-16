@@ -1,7 +1,12 @@
 """Shared test fixtures for the Rugby Analyzer backend."""
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
+
+# Set debug mode for tests to bypass secret key validation
+os.environ.setdefault("DEBUG", "true")
 
 from src.main import create_app
 

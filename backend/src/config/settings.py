@@ -80,6 +80,26 @@ class Settings(BaseSettings):
     ws_heartbeat_interval: int = 30
 
 
+_DEFAULT_SECRET_KEY = "dev-secret-key-change-in-production"
+
+
+def validate_settings(settings: "Settings") -> None:
+    """Validate settings at startup.
+
+    Refuses to run in non-debug mode with the default secret key
+    to prevent accidental production deployments with insecure defaults.
+
+    Raises:
+        RuntimeError: If running in production mode with default secret key.
+    """
+    if not settings.debug and settings.secret_key == _DEFAULT_SECRET_KEY:
+        raise RuntimeError(
+            "SECURITY ERROR: Cannot run in production mode (debug=False) with the "
+            "default secret key. Set a secure SECRET_KEY environment variable or "
+            "enable debug mode (DEBUG=true) for local development."
+        )
+
+
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()

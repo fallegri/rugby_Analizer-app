@@ -20,7 +20,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     Limits requests per client IP within a configurable time window.
     Uses a simple token bucket algorithm without external dependencies.
+    Includes periodic cleanup to prevent unbounded memory growth from
+    unique IP addresses.
     """
+
+    # Run cleanup every N requests to bound memory usage
+    _CLEANUP_INTERVAL = 1000
 
     def __init__(
         self,
@@ -32,6 +37,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._requests: dict[str, list[float]] = defaultdict(list)
+        self._request_count: int = 0
 
     def _get_client_ip(self, request: Request) -> str:
         """Extract client IP from request."""
@@ -56,6 +62,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._requests[client_ip].append(now)
         return False
 
+    def _periodic_cleanup(self) -> None:
+        """Remove stale IP entries to prevent unbounded memory growth.
+
+        Called every _CLEANUP_INTERVAL requests. Removes IPs whose
+        entire timestamp list has expired beyond the rate limit window.
+        """
+        now = time.time()
+        window_start = now - self.window_seconds
+        stale_ips = [
+            ip for ip, timestamps in self._requests.items()
+            if not timestamps or all(ts <= window_start for ts in timestamps)
+        ]
+        for ip in stale_ips:
+            del self._requests[ip]
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request through rate limiting."""
         # Skip rate limiting for health checks and docs
@@ -63,6 +84,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         client_ip = self._get_client_ip(request)
+
+        # Periodic cleanup to bound memory usage
+        self._request_count += 1
+        if self._request_count >= self._CLEANUP_INTERVAL:
+            self._periodic_cleanup()
+            self._request_count = 0
 
         if self._is_rate_limited(client_ip):
             logger.warning(f"Rate limit exceeded for IP: {client_ip}")

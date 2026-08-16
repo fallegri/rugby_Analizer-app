@@ -17,6 +17,8 @@ from src.cv.transform import HomographyTransform, PointCorrespondence
 router = APIRouter(prefix="/api/calibration", tags=["calibration"])
 
 # In-memory storage (replace with database in production)
+# TODO: MVP limitation - calibrations are stored in-memory and lost on restart.
+# For production, persist to SQLite/Postgres via the repository pattern.
 _calibrations: dict[str, dict] = {}
 
 

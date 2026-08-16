@@ -5,7 +5,7 @@ Endpoints for interacting with AI providers: analyze, list, switch, and configur
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src.adapters.ai.provider_factory import AIProviderFactory
@@ -57,9 +57,9 @@ class ProviderInfo(BaseModel):
 # --- Dependencies ---
 
 
-def get_provider_factory(settings: Settings = Depends(get_settings)) -> AIProviderFactory:
-    """Dependency that provides the AI provider factory."""
-    return AIProviderFactory(settings)
+def get_provider_factory(request: Request) -> AIProviderFactory:
+    """Dependency that provides the singleton AI provider factory from app.state."""
+    return request.app.state.provider_factory
 
 
 # --- Endpoints ---
@@ -95,8 +95,6 @@ async def analyze(
         raise HTTPException(status_code=400, detail=str(e))
     except ConnectionError as e:
         raise HTTPException(status_code=503, detail=str(e))
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
 

@@ -1,31 +1,31 @@
 // Enums matching backend models
 export enum TrackingMode {
-  SINGLE_PLAYER = 'SINGLE_PLAYER',
-  BALL_CARRIER = 'BALL_CARRIER',
-  BALL_ONLY = 'BALL_ONLY',
-  GROUP_TRACKING = 'GROUP_TRACKING',
+  SINGLE_PLAYER = 'single_player',
+  BALL_CARRIER = 'ball_carrier',
+  BALL_ONLY = 'ball_only',
+  GROUP_TRACKING = 'group_tracking',
 }
 
 export enum AIProvider {
-  NVIDIA = 'NVIDIA',
-  OPENAI = 'OPENAI',
-  CLAUDE = 'CLAUDE',
-  GEMINI = 'GEMINI',
-  OLLAMA = 'OLLAMA',
+  NVIDIA = 'nvidia',
+  OPENAI = 'openai',
+  CLAUDE = 'claude',
+  GEMINI = 'gemini',
+  OLLAMA = 'ollama',
 }
 
 export enum VideoStatus {
-  UPLOADED = 'UPLOADED',
-  CALIBRATING = 'CALIBRATING',
-  ANALYZING = 'ANALYZING',
-  COMPLETED = 'COMPLETED',
+  UPLOADED = 'uploaded',
+  CALIBRATING = 'calibrating',
+  ANALYZING = 'analyzing',
+  COMPLETED = 'completed',
 }
 
 export enum AnalysisStatus {
-  PENDING = 'PENDING',
-  PROCESSING = 'PROCESSING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
+  PENDING = 'pending',
+  PROCESSING = 'processing',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
 }
 
 // Core interfaces
