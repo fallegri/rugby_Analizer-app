@@ -9,6 +9,8 @@ import {
   DetectedPlay,
 } from '../types';
 
+export type TabId = 'video' | 'analisis' | 'metricas' | 'jugadas' | 'ia-chat';
+
 export interface ProcessingDetails {
   stage: string;
   currentFrame: number;
@@ -31,6 +33,7 @@ interface AnalysisState {
   sessionId: string | null;
   detectedPlays: DetectedPlay[];
   isDetectingPlays: boolean;
+  activeTab: TabId;
 }
 
 interface AnalysisActions {
@@ -46,6 +49,7 @@ interface AnalysisActions {
   setSessionId: (id: string | null) => void;
   setDetectedPlays: (plays: DetectedPlay[]) => void;
   setIsDetectingPlays: (val: boolean) => void;
+  setActiveTab: (tab: TabId) => void;
   resetAnalysis: () => void;
 }
 
@@ -71,6 +75,7 @@ const initialState: AnalysisState = {
   sessionId: null,
   detectedPlays: [],
   isDetectingPlays: false,
+  activeTab: 'video',
 };
 
 export const useAnalysisStore = create<AnalysisState & AnalysisActions>()((set) => ({
@@ -112,6 +117,8 @@ export const useAnalysisStore = create<AnalysisState & AnalysisActions>()((set) 
   setDetectedPlays: (plays) => set({ detectedPlays: plays }),
 
   setIsDetectingPlays: (val) => set({ isDetectingPlays: val }),
+
+  setActiveTab: (tab) => set({ activeTab: tab }),
 
   resetAnalysis: () => set(initialState),
 }));

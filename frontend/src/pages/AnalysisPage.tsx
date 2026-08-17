@@ -10,12 +10,10 @@ import { AIChat } from '../components/AIChat';
 import { TrackingModeSelector } from '../components/TrackingModeSelector';
 import { ProcessingStatus } from '../components/ProcessingStatus';
 import { PlaysTimeline } from '../components/PlaysTimeline';
-import { useAnalysisStore } from '../stores/analysisStore';
+import { useAnalysisStore, TabId } from '../stores/analysisStore';
 import { getVideo, startProcessing, getAnalysisStatus, getAnalysisResults, getAnalysisExport } from '../services/api';
 import { wsService } from '../services/websocket';
 import { AnalysisStatus, TrackingMode, TrackingResult, PlayerMetrics, PlayArea } from '../types';
-
-type TabId = 'video' | 'analisis' | 'metricas' | 'jugadas' | 'ia-chat';
 
 interface TabConfig {
   id: TabId;
@@ -85,15 +83,16 @@ export const AnalysisPage: React.FC = () => {
     processingStatus,
     results,
     sessionId: storeSessionId,
+    activeTab,
     setVideo,
     updateProgress,
     updateProcessingDetails,
     setProcessingStatus,
     setResults,
     setSessionId,
+    setActiveTab,
   } = useAnalysisStore();
 
-  const [activeTab, setActiveTab] = useState<TabId>('video');
   const [frameBlob, setFrameBlob] = useState<Blob | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);

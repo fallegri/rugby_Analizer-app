@@ -134,7 +134,7 @@ class PlayDetectionService:
             "end_time": play.end_time,
             "confidence": play.confidence,
             "players_involved": play.players_involved,
-            "position": list(play.position),
+            "position": {"x": play.position[0], "y": play.position[1]},
             "description": play.description,
             "ai_explanation": play.ai_explanation,
         }

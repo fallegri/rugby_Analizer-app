@@ -82,6 +82,11 @@ class PlayDetector:
         plays.extend(self._detect_lineouts(players_data))
         plays.extend(self._detect_trys(players_data))
 
+        # Cross-type deduplication: suppress lower-confidence plays of
+        # different types that overlap in time and space (e.g., a ruck
+        # and scrum detected for the same physical event)
+        plays = self._deduplicate_cross_type(plays, time_threshold=2.0, dist_threshold=5.0)
+
         # Sort by start_time
         plays.sort(key=lambda p: p.start_time)
         return plays
@@ -96,8 +101,10 @@ class PlayDetector:
         if len(player_routes) < 2:
             return plays
 
-        # Get all unique timestamps across all players
-        all_timestamps = self._get_all_timestamps(player_routes)
+        # Build O(1) time indexes for each player route
+        player_time_indexes: dict[str, dict[float, dict[str, Any]]] = {}
+        for pid, route in player_routes.items():
+            player_time_indexes[pid] = self._build_time_index(route)
 
         # Check each pair of players for convergence at high speed
         player_ids = list(player_routes.keys())
@@ -106,18 +113,17 @@ class PlayDetector:
             pid_b = player_ids[j]
             route_a = player_routes[pid_a]
             route_b = player_routes[pid_b]
+            index_a = player_time_indexes[pid_a]
+            index_b = player_time_indexes[pid_b]
 
             # Find timestamps where both players have data
-            times_a = {pt["timestamp"] for pt in route_a}
-            times_b = {pt["timestamp"] for pt in route_b}
+            times_a = set(index_a.keys())
+            times_b = set(index_b.keys())
             common_times = sorted(times_a & times_b)
 
             for t in common_times:
-                pt_a = self._get_point_at_time(route_a, t)
-                pt_b = self._get_point_at_time(route_b, t)
-
-                if pt_a is None or pt_b is None:
-                    continue
+                pt_a = index_a[t]
+                pt_b = index_b[t]
 
                 dist = self._distance(pt_a["x"], pt_a["y"], pt_b["x"], pt_b["y"])
                 speed_a = pt_a["speed"]
@@ -194,6 +200,11 @@ class PlayDetector:
         if len(player_routes) < self.LINEOUT_MIN_PLAYERS:
             return plays
 
+        # Build time indexes for O(1) lookups
+        player_time_indexes: dict[str, dict[float, dict[str, Any]]] = {}
+        for pid, route in player_routes.items():
+            player_time_indexes[pid] = self._build_time_index(route)
+
         # Get all unique timestamps
         all_timestamps = self._get_common_timestamps(player_routes)
 
@@ -206,9 +217,10 @@ class PlayDetector:
             # Find players near sideline at this timestamp
             sideline_players = []
             positions = []
+            rounded_t = round(t, 3)
 
-            for pid, route in player_routes.items():
-                pt = self._get_point_at_time(route, t)
+            for pid, index in player_time_indexes.items():
+                pt = index.get(rounded_t)
                 if pt is None:
                     continue
                 # Check if near sideline
@@ -346,6 +358,11 @@ class PlayDetector:
         if len(player_routes) < min_players:
             return plays
 
+        # Build time indexes for O(1) lookups
+        player_time_indexes: dict[str, dict[float, dict[str, Any]]] = {}
+        for pid, route in player_routes.items():
+            player_time_indexes[pid] = self._build_time_index(route)
+
         all_timestamps = self._get_common_timestamps(player_routes)
 
         window_start: float | None = None
@@ -355,9 +372,10 @@ class PlayDetector:
         for t in all_timestamps:
             # Get positions and speeds at this timestamp
             current_positions: list[tuple[str, float, float, float]] = []
+            rounded_t = round(t, 3)
 
-            for pid, route in player_routes.items():
-                pt = self._get_point_at_time(route, t)
+            for pid, index in player_time_indexes.items():
+                pt = index.get(rounded_t)
                 if pt is not None:
                     current_positions.append((pid, pt["x"], pt["y"], pt["speed"]))
 
@@ -464,14 +482,37 @@ class PlayDetector:
         """Get all unique timestamps across all players, sorted."""
         return self._get_all_timestamps(player_routes)
 
+    def _build_time_index(
+        self, route: list[dict[str, Any]]
+    ) -> dict[float, dict[str, Any]]:
+        """Build a timestamp -> point index for O(1) lookups.
+
+        Rounds timestamps to 3 decimal places for consistent matching.
+        """
+        index: dict[float, dict[str, Any]] = {}
+        for pt in route:
+            t = round(pt.get("timestamp", -1), 3)
+            index[t] = pt
+        return index
+
     def _get_point_at_time(
         self, route: list[dict[str, Any]], timestamp: float
     ) -> dict[str, Any] | None:
-        """Get the route point at exact timestamp, or None."""
+        """Get the route point at exact timestamp, or None.
+
+        Falls back to linear scan for compatibility when no index is provided.
+        """
+        rounded_t = round(timestamp, 3)
         for pt in route:
-            if abs(pt.get("timestamp", -1) - timestamp) < 0.001:
+            if round(pt.get("timestamp", -1), 3) == rounded_t:
                 return pt
         return None
+
+    def _get_point_from_index(
+        self, index: dict[float, dict[str, Any]], timestamp: float
+    ) -> dict[str, Any] | None:
+        """O(1) point lookup using a pre-built time index."""
+        return index.get(round(timestamp, 3))
 
     def _distance(self, x1: float, y1: float, x2: float, y2: float) -> float:
         """Euclidean distance between two points."""
@@ -607,3 +648,59 @@ class PlayDetector:
                 unique.append(play)
 
         return unique
+
+    def _deduplicate_cross_type(
+        self,
+        plays: list[DetectedPlay],
+        time_threshold: float,
+        dist_threshold: float,
+    ) -> list[DetectedPlay]:
+        """Remove overlapping plays of different types for the same event.
+
+        When two cluster-based plays (ruck, scrum) overlap in time and
+        space with shared players, the one with higher confidence is kept.
+        This handles cases like a ruck and scrum being detected for the
+        same physical event without suppressing unrelated detections.
+        """
+        if not plays:
+            return plays
+
+        # Only apply cross-type dedup between cluster-based play types
+        # that can genuinely overlap for the same physical event
+        cluster_types = {"ruck", "scrum"}
+
+        # Sort by confidence descending so higher-confidence plays are kept
+        sorted_plays = sorted(plays, key=lambda p: p.confidence, reverse=True)
+        kept: list[DetectedPlay] = []
+
+        for play in sorted_plays:
+            is_suppressed = False
+            for existing in kept:
+                # Only cross-type dedup between cluster-based types
+                if existing.play_type == play.play_type:
+                    continue
+                if play.play_type not in cluster_types or existing.play_type not in cluster_types:
+                    continue
+                # Check time overlap
+                time_overlap = (
+                    play.start_time <= existing.end_time
+                    and play.end_time >= existing.start_time
+                )
+                if not time_overlap:
+                    continue
+                # Check spatial proximity
+                pos_diff = self._distance(
+                    play.position[0], play.position[1],
+                    existing.position[0], existing.position[1],
+                )
+                if pos_diff < dist_threshold:
+                    # Check player overlap - at least one shared player
+                    shared_players = set(play.players_involved) & set(existing.players_involved)
+                    if shared_players:
+                        # The existing play has higher confidence (sorted order)
+                        is_suppressed = True
+                        break
+            if not is_suppressed:
+                kept.append(play)
+
+        return kept

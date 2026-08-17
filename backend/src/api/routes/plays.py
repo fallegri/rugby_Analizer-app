@@ -9,17 +9,9 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from src.services.play_detection_service import PlayDetectionService
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analysis", tags=["plays"])
-
-# In-memory storage for detected plays per session
-_detected_plays: dict[str, list[dict[str, Any]]] = {}
-
-# Service instance
-_play_detection_service = PlayDetectionService()
 
 
 @router.post("/{session_id}/detect-plays")
@@ -41,9 +33,11 @@ async def detect_plays(session_id: str, req: Request) -> dict[str, Any]:
     """
     analysis_service = req.app.state.analysis_service
     provider_factory = req.app.state.provider_factory
+    play_detection_service = req.app.state.play_detection_service
+    detected_plays = req.app.state.detected_plays
 
     try:
-        plays = await _play_detection_service.detect_and_explain(
+        plays = await play_detection_service.detect_and_explain(
             session_id=session_id,
             analysis_service=analysis_service,
             provider_factory=provider_factory,
@@ -60,7 +54,7 @@ async def detect_plays(session_id: str, req: Request) -> dict[str, Any]:
         )
 
     # Store results
-    _detected_plays[session_id] = plays
+    detected_plays[session_id] = plays
 
     return {
         "session_id": session_id,
@@ -83,14 +77,16 @@ async def get_plays(session_id: str, req: Request) -> dict[str, Any]:
     Raises:
         HTTPException: If no plays have been detected for this session.
     """
-    if session_id not in _detected_plays:
+    detected_plays = req.app.state.detected_plays
+
+    if session_id not in detected_plays:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No detected plays found for session '{session_id}'. "
             f"Run POST /api/analysis/{session_id}/detect-plays first.",
         )
 
-    plays = _detected_plays[session_id]
+    plays = detected_plays[session_id]
     return {
         "session_id": session_id,
         "plays": plays,

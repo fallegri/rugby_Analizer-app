@@ -18,6 +18,7 @@ from src.api.websocket import router as ws_router
 from src.config.settings import get_settings, validate_settings
 from src.services.analysis_service import AnalysisService
 from src.services.background_tasks import BackgroundTaskManager
+from src.services.play_detection_service import PlayDetectionService
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,8 @@ def create_app() -> FastAPI:
     app.state.analysis_service = AnalysisService()
     app.state.background_task_manager = BackgroundTaskManager()
     app.state.provider_factory = AIProviderFactory(settings)
+    app.state.play_detection_service = PlayDetectionService()
+    app.state.detected_plays: dict[str, list] = {}
 
     return app
 

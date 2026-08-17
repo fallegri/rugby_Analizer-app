@@ -256,10 +256,13 @@ class TestPlayToDictSerialization:
         json_str = json.dumps(result)
         assert json_str is not None
 
-        # Position should be a list (not tuple)
+        # Position should be an object with x and y keys
         for play in result:
-            assert isinstance(play["position"], list)
-            assert len(play["position"]) == 2
+            assert isinstance(play["position"], dict)
+            assert "x" in play["position"]
+            assert "y" in play["position"]
+            assert isinstance(play["position"]["x"], (int, float))
+            assert isinstance(play["position"]["y"], (int, float))
 
 
 class TestAIProviderIntegration:
