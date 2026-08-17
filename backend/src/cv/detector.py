@@ -81,7 +81,7 @@ class YOLODetector:
             frame,
             conf=self.confidence_threshold,
             classes=self.target_classes,
-            device=self.device if self.device != "auto" else None,
+            device=self.device if self.device not in ("auto", "") else "cpu",
             verbose=False,
         )
 

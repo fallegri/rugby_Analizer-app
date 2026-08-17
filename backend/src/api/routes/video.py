@@ -261,11 +261,13 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
             f"Mode: {request.mode.value} | Video: {video_path}"
         )
 
-        # Create detector with YOLOv8n (lightweight, GTX 1060 compatible)
+        # Create detector with YOLOv8n (lightweight, compatible with CPU and GPU)
+        import os
+        yolo_device = os.environ.get("YOLO_DEVICE", "cpu")
         detector = YOLODetector(
             model_path="yolov8n.pt",
             confidence_threshold=0.25,
-            device="auto",
+            device=yolo_device,
         )
 
         # Create ByteTrack-style tracker
