@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-012",
+  "type": "feat",
+  "description": "Animated player movement in FieldView: Players move along their routes following timestamps, with time slider, play/pause controls, speed control, and trail/estela visualization. Works for all tracking modes.",
+  "status": "in_progress",
+  "steps": [
+    "Add animation state (currentTime, isPlaying, playbackSpeed) and controls to FieldView.tsx",
+    "Implement time interpolation logic to compute player positions at any given timestamp",
+    "Render player trail (polyline of points up to current time) and current position circle",
+    "Add time slider, play/pause button, and speed selector controls below the field",
+    "Ensure animation works for all modes: individual, group, ball carrier",
+    "Verify frontend builds and tests pass"
+  ],
+  "acceptance_criteria": [
+    "Player circles move along the field following their route points interpolated by timestamp",
+    "A time slider controls which moment is being visualized",
+    "Trail/estela shows the path the player has already traveled up to the current time",
+    "Play/Pause button starts/stops automatic animation playback",
+    "Speed controls allow 0.5x, 1x, 2x, 4x playback speeds",
+    "Animation works for all tracking modes (single player, group, ball carrier)",
+    "Frontend builds without errors",
+    "Existing tests pass"
+  ],
+  "verification": [
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

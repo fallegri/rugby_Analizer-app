@@ -1,6 +1,6 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
-import { PlayerMetrics } from '../types';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { ZoomIn, ZoomOut, Maximize2, Play, Pause, SkipBack } from 'lucide-react';
+import { PlayerMetrics, RoutePoint } from '../types';
 
 interface FieldViewProps {
   players?: PlayerMetrics[];
@@ -20,6 +20,79 @@ const PLAYER_COLORS = [
   '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
 ];
 
+const PLAYBACK_SPEEDS = [0.5, 1, 2, 4];
+
+/**
+ * Interpolates the player position at a given time from the route array.
+ * Returns { x, y } in field coordinates, or null if no valid data.
+ */
+function interpolatePosition(route: RoutePoint[], time: number): { x: number; y: number } | null {
+  if (!route || route.length === 0) return null;
+
+  // Before the first point
+  if (time <= route[0].timestamp) {
+    return { x: route[0].x, y: route[0].y };
+  }
+
+  // After the last point
+  if (time >= route[route.length - 1].timestamp) {
+    return { x: route[route.length - 1].x, y: route[route.length - 1].y };
+  }
+
+  // Find the two surrounding points and lerp
+  for (let i = 0; i < route.length - 1; i++) {
+    const p0 = route[i];
+    const p1 = route[i + 1];
+    if (time >= p0.timestamp && time <= p1.timestamp) {
+      const dt = p1.timestamp - p0.timestamp;
+      if (dt === 0) return { x: p0.x, y: p0.y };
+      const t = (time - p0.timestamp) / dt;
+      return {
+        x: p0.x + (p1.x - p0.x) * t,
+        y: p0.y + (p1.y - p0.y) * t,
+      };
+    }
+  }
+
+  return { x: route[route.length - 1].x, y: route[route.length - 1].y };
+}
+
+/**
+ * Returns the trail points (route points up to and including the current time).
+ * The last point is the interpolated current position.
+ */
+function getTrailPoints(route: RoutePoint[], time: number): { x: number; y: number }[] {
+  if (!route || route.length === 0) return [];
+
+  const trail: { x: number; y: number }[] = [];
+
+  for (const pt of route) {
+    if (pt.timestamp <= time) {
+      trail.push({ x: pt.x, y: pt.y });
+    } else {
+      break;
+    }
+  }
+
+  // Add interpolated current position at end
+  const currentPos = interpolatePosition(route, time);
+  if (currentPos) {
+    // Avoid duplicate if last trail point is at exactly current time
+    const last = trail[trail.length - 1];
+    if (!last || Math.abs(last.x - currentPos.x) > 0.001 || Math.abs(last.y - currentPos.y) > 0.001) {
+      trail.push(currentPos);
+    }
+  }
+
+  return trail;
+}
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export const FieldView: React.FC<FieldViewProps> = ({ players = [], showHeatMap = false }) => {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -27,9 +100,100 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [], showHeatMap 
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Animation state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const animationRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number | null>(null);
+
+  // Compute the time range from all players' routes
+  const { minTime, maxTime } = useMemo(() => {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const player of players) {
+      if (player.route && player.route.length > 0) {
+        const first = player.route[0].timestamp;
+        const last = player.route[player.route.length - 1].timestamp;
+        if (first < min) min = first;
+        if (last > max) max = last;
+      }
+    }
+    if (min === Infinity) return { minTime: 0, maxTime: 0 };
+    return { minTime: min, maxTime: max };
+  }, [players]);
+
+  const duration = maxTime - minTime;
+  const hasRouteData = duration > 0;
+
+  // Animation loop
+  useEffect(() => {
+    if (!isPlaying || !hasRouteData) return;
+
+    const animate = (timestamp: number) => {
+      if (lastFrameTimeRef.current === null) {
+        lastFrameTimeRef.current = timestamp;
+      }
+
+      const deltaMs = timestamp - lastFrameTimeRef.current;
+      lastFrameTimeRef.current = timestamp;
+
+      setCurrentTime((prev) => {
+        const next = prev + (deltaMs / 1000) * playbackSpeed;
+        if (next >= maxTime) {
+          setIsPlaying(false);
+          return maxTime;
+        }
+        return next;
+      });
+
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current !== null) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      lastFrameTimeRef.current = null;
+    };
+  }, [isPlaying, playbackSpeed, maxTime, hasRouteData]);
+
+  // Reset currentTime when players change
+  useEffect(() => {
+    setCurrentTime(minTime);
+    setIsPlaying(false);
+  }, [minTime]);
+
+  const handlePlayPause = () => {
+    if (!hasRouteData) return;
+    if (currentTime >= maxTime) {
+      // Restart from beginning
+      setCurrentTime(minTime);
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleReset = () => {
+    setIsPlaying(false);
+    setCurrentTime(minTime);
+  };
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    setCurrentTime(value);
+    setIsPlaying(false);
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackSpeed(speed);
+  };
+
   const handleZoomIn = () => setZoom((z) => Math.min(z + 0.25, 3));
   const handleZoomOut = () => setZoom((z) => Math.max(z - 0.25, 0.5));
-  const handleReset = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+  const handleResetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsPanning(true);
@@ -77,18 +241,53 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [], showHeatMap 
     </g>
   );
 
-  const renderPlayerRoutes = () => (
+  const renderAnimatedPlayers = () => (
     <g>
       {players.map((player, idx) => {
         const color = PLAYER_COLORS[idx % PLAYER_COLORS.length];
         if (!player.route || player.route.length < 2) return null;
-        const pathPoints = player.route.map((pt) => `${pt.x * SCALE_X},${pt.y * SCALE_Y}`).join(' ');
-        const lastPoint = player.route[player.route.length - 1];
+
+        // Get trail up to current time
+        const trail = getTrailPoints(player.route, currentTime);
+        if (trail.length === 0) return null;
+
+        const trailPathPoints = trail.map((pt) => `${pt.x * SCALE_X},${pt.y * SCALE_Y}`).join(' ');
+        const currentPos = trail[trail.length - 1];
+
         return (
           <g key={player.player_id}>
-            <polyline points={pathPoints} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.8} />
-            <circle cx={lastPoint.x * SCALE_X} cy={lastPoint.y * SCALE_Y} r={6} fill={color} stroke="white" strokeWidth={1.5} />
-            <text x={lastPoint.x * SCALE_X} y={lastPoint.y * SCALE_Y - 10} textAnchor="middle" fill="white" fontSize={9} fontWeight="bold">{player.player_id}</text>
+            {/* Trail / estela */}
+            {trail.length >= 2 && (
+              <polyline
+                points={trailPathPoints}
+                fill="none"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={0.6}
+              />
+            )}
+            {/* Current position */}
+            <circle
+              cx={currentPos.x * SCALE_X}
+              cy={currentPos.y * SCALE_Y}
+              r={6}
+              fill={color}
+              stroke="white"
+              strokeWidth={1.5}
+            />
+            {/* Player label */}
+            <text
+              x={currentPos.x * SCALE_X}
+              y={currentPos.y * SCALE_Y - 10}
+              textAnchor="middle"
+              fill="white"
+              fontSize={9}
+              fontWeight="bold"
+            >
+              {player.player_id}
+            </text>
           </g>
         );
       })}
@@ -100,7 +299,7 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [], showHeatMap 
     return (
       <g opacity={0.4}>
         {players.flatMap((player) =>
-          (player.route || []).map((pt, i) => (
+          (player.route || []).filter((pt) => pt.timestamp <= currentTime).map((pt, i) => (
             <circle key={`heat-${player.player_id}-${i}`} cx={pt.x * SCALE_X} cy={pt.y * SCALE_Y} r={8} fill="red" opacity={0.1} />
           ))
         )}
@@ -120,7 +319,7 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [], showHeatMap 
           <button onClick={handleZoomIn} className="p-1 hover:bg-gray-700 rounded" title="Zoom in">
             <ZoomIn className="w-4 h-4 text-gray-300" />
           </button>
-          <button onClick={handleReset} className="p-1 hover:bg-gray-700 rounded ml-1" title="Reset view">
+          <button onClick={handleResetView} className="p-1 hover:bg-gray-700 rounded ml-1" title="Reset view">
             <Maximize2 className="w-4 h-4 text-gray-300" />
           </button>
         </div>
@@ -140,9 +339,73 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [], showHeatMap 
         >
           {renderFieldLines()}
           {renderHeatMap()}
-          {renderPlayerRoutes()}
+          {renderAnimatedPlayers()}
         </svg>
       </div>
+
+      {/* Animation Controls */}
+      {hasRouteData && (
+        <div className="mt-3 space-y-2">
+          {/* Time slider */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 w-10 text-right">{formatTime(currentTime - minTime)}</span>
+            <input
+              type="range"
+              min={minTime}
+              max={maxTime}
+              step={0.1}
+              value={currentTime}
+              onChange={handleSliderChange}
+              className="flex-1 h-1.5 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              aria-label="Time slider"
+            />
+            <span className="text-xs text-gray-400 w-10">{formatTime(duration)}</span>
+          </div>
+
+          {/* Playback controls */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleReset}
+                className="p-1.5 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
+                title="Reset"
+                aria-label="Reset"
+              >
+                <SkipBack className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handlePlayPause}
+                className="p-1.5 bg-blue-600 hover:bg-blue-500 rounded text-white transition-colors"
+                title={isPlaying ? 'Pause' : 'Play'}
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {/* Speed controls */}
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500 mr-1">Speed:</span>
+              {PLAYBACK_SPEEDS.map((speed) => (
+                <button
+                  key={speed}
+                  onClick={() => handleSpeedChange(speed)}
+                  className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                    playbackSpeed === speed
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-gray-200'
+                  }`}
+                  aria-label={`${speed}x speed`}
+                >
+                  {speed}x
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Player legend */}
       {players.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {players.map((player, idx) => (
