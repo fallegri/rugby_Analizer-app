@@ -1,7 +1,14 @@
 {
   "task_id": "task-play-detection-and-frontend-tabs",
   "task_description": "Add automatic rugby play detection (tackles, scrums, rucks, line-outs, trys) using player movement patterns with AI confirmation/explanation, and reorganize the frontend from a single cluttered page into a tabbed sidebar layout with sections: Video, Analisis, Metricas, Jugadas, IA Chat.",
-  "status": "in_progress",
-  "feature_order": ["FEAT-001", "FEAT-002"],
-  "blocked_reason": null
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Backend: 245 tests pass including 20 new play detector tests and 10 service tests. Frontend: 35 tests pass, tsc+vite build succeeds. All new tests exercise actual code paths and would fail if reverted."
+  }
 }

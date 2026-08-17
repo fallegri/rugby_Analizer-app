@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Address v2 review feedback: fix line-out play_type enum mismatch (backend emits 'line-out' but frontend expects 'lineout') and optimize _check_convergence to use pre-built time indexes instead of O(n) linear scans.",
+  "status": "completed",
+  "steps": [
+    "In backend/src/cv/play_detector.py, change play_type='line-out' to play_type='lineout' in both occurrences in _detect_lineouts.",
+    "Update _check_convergence to accept pre-built time indexes (dict[float, dict]) instead of raw route lists, using dict lookups and sorted keys with bisect for finding earlier points.",
+    "Update the caller in _detect_tackles to pass the time indexes to _check_convergence.",
+    "Update backend tests that assert on play_type == 'line-out' to use 'lineout'."
+  ],
+  "acceptance_criteria": [
+    "Backend emits play_type='lineout' matching frontend PlayType.LINEOUT = 'lineout'",
+    "_check_convergence uses O(1) dict lookups or O(log n) bisect instead of linear scans",
+    "All backend tests pass: uv run pytest tests/ -v",
+    "Frontend builds and tests pass: npm run build && npm run test -- --run"
+  ],
+  "verification": [
+    "cd backend && uv run pytest tests/ -v",
+    "cd frontend && npm run build",
+    "cd frontend && npm run test -- --run"
+  ],
+  "blocked_reason": null,
+  "findings": "All 245 backend tests pass. All 35 frontend tests pass. Frontend build succeeds. The lineout enum mismatch fix ensures line-out plays display correctly in the frontend. The _check_convergence optimization uses bisect on pre-sorted keys, reducing per-invocation complexity from O(n) to O(log n) for finding earlier points in the time window."
+}

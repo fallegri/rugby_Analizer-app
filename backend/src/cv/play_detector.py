@@ -4,6 +4,7 @@ Detects rugby plays (tackles, scrums, rucks, line-outs, trys) from
 player movement patterns including speed, convergence, and clustering.
 """
 
+import bisect
 import math
 from dataclasses import dataclass, field
 from itertools import combinations
@@ -101,20 +102,23 @@ class PlayDetector:
         if len(player_routes) < 2:
             return plays
 
-        # Build O(1) time indexes for each player route
+        # Build O(1) time indexes and sorted key lists for each player route
         player_time_indexes: dict[str, dict[float, dict[str, Any]]] = {}
+        player_sorted_keys: dict[str, list[float]] = {}
         for pid, route in player_routes.items():
-            player_time_indexes[pid] = self._build_time_index(route)
+            index = self._build_time_index(route)
+            player_time_indexes[pid] = index
+            player_sorted_keys[pid] = sorted(index.keys())
 
         # Check each pair of players for convergence at high speed
         player_ids = list(player_routes.keys())
         for i, j in combinations(range(len(player_ids)), 2):
             pid_a = player_ids[i]
             pid_b = player_ids[j]
-            route_a = player_routes[pid_a]
-            route_b = player_routes[pid_b]
             index_a = player_time_indexes[pid_a]
             index_b = player_time_indexes[pid_b]
+            keys_a = player_sorted_keys[pid_a]
+            keys_b = player_sorted_keys[pid_b]
 
             # Find timestamps where both players have data
             times_a = set(index_a.keys())
@@ -138,7 +142,7 @@ class PlayDetector:
                 ):
                     # Check convergence: were they farther apart in a recent window?
                     converging = self._check_convergence(
-                        route_a, route_b, t, self.TACKLE_TIME_WINDOW_S
+                        index_a, index_b, keys_a, keys_b, t, self.TACKLE_TIME_WINDOW_S
                     )
                     if converging:
                         mid_x = (pt_a["x"] + pt_b["x"]) / 2
@@ -243,7 +247,7 @@ class PlayDetector:
                 ):
                     centroid = self._centroid(window_positions)
                     plays.append(DetectedPlay(
-                        play_type="line-out",
+                        play_type="lineout",
                         start_time=window_start,
                         end_time=t,
                         confidence=min(1.0, len(window_players) / 7.0),
@@ -267,7 +271,7 @@ class PlayDetector:
         ):
             centroid = self._centroid(window_positions)
             plays.append(DetectedPlay(
-                play_type="line-out",
+                play_type="lineout",
                 start_time=window_start,
                 end_time=all_timestamps[-1],
                 confidence=min(1.0, len(window_players) / 7.0),
@@ -567,19 +571,24 @@ class PlayDetector:
 
     def _check_convergence(
         self,
-        route_a: list[dict[str, Any]],
-        route_b: list[dict[str, Any]],
+        index_a: dict[float, dict[str, Any]],
+        index_b: dict[float, dict[str, Any]],
+        sorted_keys_a: list[float],
+        sorted_keys_b: list[float],
         current_time: float,
         window: float,
     ) -> bool:
         """Check if two players were converging within the time window.
 
+        Uses pre-built time indexes with sorted keys and bisect for
+        O(log n) earlier-point lookups instead of linear scans.
+
         Returns True if the distance between them was larger earlier
         in the window than it is at current_time.
         """
-        # Get current distance
-        pt_a_now = self._get_point_at_time(route_a, current_time)
-        pt_b_now = self._get_point_at_time(route_b, current_time)
+        # Get current distance using O(1) index lookup
+        pt_a_now = self._get_point_from_index(index_a, current_time)
+        pt_b_now = self._get_point_from_index(index_b, current_time)
         if pt_a_now is None or pt_b_now is None:
             return False
 
@@ -589,20 +598,14 @@ class PlayDetector:
 
         # Look for an earlier time within the window
         earlier_time = current_time - window
-        # Find closest available point before the window
-        best_a = None
-        best_b = None
-        for pt in route_a:
-            t = pt.get("timestamp", 0)
-            if earlier_time - 0.5 <= t <= current_time - 0.01:
-                if best_a is None or abs(t - earlier_time) < abs(best_a.get("timestamp", 0) - earlier_time):
-                    best_a = pt
 
-        for pt in route_b:
-            t = pt.get("timestamp", 0)
-            if earlier_time - 0.5 <= t <= current_time - 0.01:
-                if best_b is None or abs(t - earlier_time) < abs(best_b.get("timestamp", 0) - earlier_time):
-                    best_b = pt
+        # Use bisect on sorted keys to find the closest point in the window
+        best_a = self._find_nearest_point_in_window(
+            index_a, sorted_keys_a, earlier_time - 0.5, current_time - 0.01, earlier_time
+        )
+        best_b = self._find_nearest_point_in_window(
+            index_b, sorted_keys_b, earlier_time - 0.5, current_time - 0.01, earlier_time
+        )
 
         if best_a is None or best_b is None:
             # If there's no earlier point, consider it convergence
@@ -615,6 +618,40 @@ class PlayDetector:
 
         # Converging if distance decreased
         return dist_earlier > dist_now
+
+    def _find_nearest_point_in_window(
+        self,
+        index: dict[float, dict[str, Any]],
+        sorted_keys: list[float],
+        window_start: float,
+        window_end: float,
+        target_time: float,
+    ) -> dict[str, Any] | None:
+        """Find the point in the time index closest to target_time within [window_start, window_end].
+
+        Uses bisect on pre-sorted keys for O(log n) lookup.
+        """
+        # Find the insertion point for window_start
+        left = bisect.bisect_left(sorted_keys, window_start)
+        # Find the insertion point for window_end
+        right = bisect.bisect_right(sorted_keys, window_end)
+
+        if left >= right:
+            return None
+
+        # Search only within the valid window range for the closest to target_time
+        best_key = None
+        best_diff = float("inf")
+        for i in range(left, right):
+            key = sorted_keys[i]
+            diff = abs(key - target_time)
+            if diff < best_diff:
+                best_diff = diff
+                best_key = key
+
+        if best_key is None:
+            return None
+        return index[best_key]
 
     def _deduplicate_plays(
         self,

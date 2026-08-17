@@ -434,7 +434,7 @@ class TestLineoutDetection:
             })
 
         result = detector.detect_plays(players)
-        lineouts = [p for p in result if p.play_type == "line-out"]
+        lineouts = [p for p in result if p.play_type == "lineout"]
         assert len(lineouts) >= 1
         lineout = lineouts[0]
         assert len(lineout.players_involved) >= 4
@@ -465,7 +465,7 @@ class TestLineoutDetection:
             })
 
         result = detector.detect_plays(players)
-        lineouts = [p for p in result if p.play_type == "line-out"]
+        lineouts = [p for p in result if p.play_type == "lineout"]
         assert len(lineouts) >= 1
 
     def test_no_lineout_in_center(self):
@@ -494,7 +494,7 @@ class TestLineoutDetection:
             })
 
         result = detector.detect_plays(players)
-        lineouts = [p for p in result if p.play_type == "line-out"]
+        lineouts = [p for p in result if p.play_type == "lineout"]
         assert len(lineouts) == 0
 
 
