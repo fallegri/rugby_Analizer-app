@@ -1,0 +1,82 @@
+# =============================================================================
+# Rugby Analyzer - Local Development (Simplified)
+# =============================================================================
+# No Postgres, no Redis. The app uses in-memory storage / SQLite.
+#
+# Usage:
+#   docker compose -f docker-compose.local.yml up --build
+#
+# GPU support (NVIDIA):
+#   The backend service includes GPU passthrough configuration.
+#   If no NVIDIA GPU is available, Docker will fall back to CPU automatically
+#   when using docker compose v2.21+. On older versions, remove the 'deploy'
+#   section or use the NVIDIA_VISIBLE_DEVICES=void override.
+#
+# Access:
+#   - Frontend:  http://localhost:3000
+#   - Backend:   http://localhost:8000
+#   - API docs:  http://localhost:8000/api/docs
+# =============================================================================
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads_data:/app/uploads
+      - yolo_models:/app/models
+      - yolo_cache:/root/.cache/ultralytics
+    environment:
+      - APP_ENV=development
+      - APP_DEBUG=true
+      - YOLO_MODEL_PATH=models/yolov8x.pt
+      - YOLO_DEVICE=auto
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+      - UPLOAD_DIR=uploads/
+      - MAX_UPLOAD_SIZE_MB=500
+    env_file:
+      - .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        VITE_API_URL: /api
+        VITE_WS_URL: ws://localhost:3000
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  uploads_data:
+    driver: local
+  yolo_models:
+    driver: local
+  yolo_cache:
+    driver: local
