@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Backend: Implement rugby play detection engine that recognizes tackles, scrums, rucks, line-outs, and trys from player movement patterns (speeds, convergence, clustering). After detection, send the context to the AI provider for confirmation and explanation. Expose via API endpoint.",
+  "status": "in_progress",
+  "steps": [
+    "Create backend/src/cv/play_detector.py with a PlayDetector class. It should accept per-frame player positions/speeds (from the analytics pipeline output format: list of players each with route points containing x, y, timestamp, speed). Implement detection algorithms: (1) Tackle: 2+ players converging rapidly (speed > 15 km/h) with distance < 2m within a short time window. (2) Scrum: 8+ players clustered in a tight area (< 5m radius) with low average speed (< 3 km/h). (3) Ruck: 3-6 players clustered around a point after a tackle event. (4) Line-out: players arranged in a linear formation along the sideline (y < 5m or y > 63m) with low speed. (5) Try: a player crossing the try line (x > 95m or x < 5m depending on direction) at significant speed.",
+    "Define dataclasses in backend/src/cv/play_detector.py: DetectedPlay with fields (play_type: str, start_time: float, end_time: float, confidence: float, players_involved: list[str], position: tuple[float, float], description: str, ai_explanation: str | None).",
+    "Create backend/src/services/play_detection_service.py that: (1) Takes the analysis results (players list with routes) and runs PlayDetector. (2) For each detected play, calls the AI provider (via provider_factory from app.state) with a prompt describing the movement pattern and asks for confirmation + explanation. (3) Returns the list of detected plays with AI explanations attached.",
+    "Add a new route in backend/src/api/routes/plays.py: POST /api/analysis/{session_id}/detect-plays that triggers play detection on completed analysis results. GET /api/analysis/{session_id}/plays to retrieve detected plays. The route should use app.state.analysis_service to get results and app.state.provider_factory for AI calls.",
+    "Register the new plays router in backend/src/main.py by importing and including it.",
+    "Add unit tests in backend/tests/unit/test_play_detector.py testing each play type detection with known movement patterns (synthetic data). Follow the pattern from test_analytics.py.",
+    "Add unit tests in backend/tests/unit/test_play_detection_service.py testing the service with mocked AI provider calls."
+  ],
+  "acceptance_criteria": [
+    "PlayDetector.detect_plays() correctly identifies tackles from converging high-speed players",
+    "PlayDetector.detect_plays() correctly identifies scrums from large tight clusters with low speed",
+    "PlayDetector.detect_plays() correctly identifies trys from try-line crossing",
+    "PlayDetectionService integrates with AI provider factory for explanations",
+    "API endpoints POST /api/analysis/{session_id}/detect-plays and GET /api/analysis/{session_id}/plays work correctly",
+    "All new unit tests pass: uv run pytest tests/unit/test_play_detector.py tests/unit/test_play_detection_service.py -v"
+  ],
+  "verification": [
+    "cd backend && uv run pytest tests/unit/test_play_detector.py tests/unit/test_play_detection_service.py -v",
+    "cd backend && uv run pytest tests/ -v"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

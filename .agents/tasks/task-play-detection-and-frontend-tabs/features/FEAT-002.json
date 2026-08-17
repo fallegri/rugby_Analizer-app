@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Frontend: Reorganize the AnalysisPage from a single cluttered 2-column grid into a tabbed/sidebar navigation layout with sections: Video, Analisis, Metricas, Jugadas, IA Chat. Add the Jugadas tab showing detected plays as timeline markers with AI explanations.",
+  "status": "pending",
+  "steps": [
+    "Add new types to frontend/src/types/index.ts: DetectedPlay interface with fields (play_type: string, start_time: number, end_time: number, confidence: number, players_involved: string[], position: {x: number, y: number}, description: string, ai_explanation: string | null). Add PlayType enum with values: tackle, scrum, ruck, lineout, try.",
+    "Add new API functions in frontend/src/services/api.ts: detectPlays(sessionId: string) calling POST /api/analysis/{sessionId}/detect-plays, and getPlays(sessionId: string) calling GET /api/analysis/{sessionId}/plays returning DetectedPlay[].",
+    "Add plays state to frontend/src/stores/analysisStore.ts: detectedPlays: DetectedPlay[], isDetectingPlays: boolean, setDetectedPlays action, setIsDetectingPlays action.",
+    "Create frontend/src/components/PlaysTimeline.tsx: A timeline component that displays detected plays as colored markers (each play_type gets a distinct color/icon). Clicking a marker shows the AI explanation in a panel. Shows play type badge, time range, confidence %, involved players, and the AI explanation text.",
+    "Refactor frontend/src/pages/AnalysisPage.tsx into a tabbed layout. Create a sidebar or top-tabs navigation with 5 tabs: (1) Video - contains VideoPlayer + PlayerSelector + FieldCalibration + TrackingModeSelector + Start button. (2) Analisis - contains ProcessingStatus + FieldView (animated field). (3) Metricas - contains AnalyticsDashboard + Export button. (4) Jugadas - contains PlaysTimeline + a 'Detect Plays' button that calls the API. (5) IA Chat - contains the AIChat component full-height. Use a vertical sidebar with icons+labels on the left side, content area on the right. Use lucide-react icons for each tab (Video, Activity, BarChart3, Crosshair, MessageSquare). Keep the top header bar with app name and settings button.",
+    "Update frontend/src/App.tsx if needed - ensure routing still works for /analysis/:videoId with the new layout.",
+    "Add or update frontend tests in frontend/src/__tests__/ to cover the new PlaysTimeline component rendering and tab navigation logic. Follow the pattern in existing test files."
+  ],
+  "acceptance_criteria": [
+    "AnalysisPage renders a sidebar/tabs with 5 navigation sections: Video, Analisis, Metricas, Jugadas, IA Chat",
+    "Each tab shows only its relevant content - not everything on one screen",
+    "PlaysTimeline component renders detected plays as visual timeline markers",
+    "Clicking a play marker shows the AI explanation",
+    "Detect Plays button calls the backend API and populates the timeline",
+    "Frontend builds without TypeScript errors: npm run build succeeds",
+    "Frontend tests pass: npm run test -- --run"
+  ],
+  "verification": [
+    "cd frontend && npm run build",
+    "cd frontend && npm run test -- --run"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
