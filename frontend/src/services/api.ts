@@ -1,5 +1,5 @@
 import axios, { AxiosProgressEvent } from 'axios';
-import { AIProvider, CalibrationPoint, TrackingMode, Video, TrackingResult, FieldCalibration, PlayArea } from '../types';
+import { AIProvider, CalibrationPoint, TrackingMode, Video, TrackingResult, FieldCalibration, PlayArea, DetectedPlay } from '../types';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -118,6 +118,17 @@ export async function manualCalibrate(points: CalibrationPoint[]): Promise<Field
 export async function getHealth(): Promise<{ status: string }> {
   const response = await apiClient.get('/health');
   return response.data;
+}
+
+// Play detection endpoints
+export async function detectPlays(sessionId: string): Promise<DetectedPlay[]> {
+  const response = await apiClient.post(`/analysis/${sessionId}/detect-plays`);
+  return response.data.plays || response.data;
+}
+
+export async function getPlays(sessionId: string): Promise<DetectedPlay[]> {
+  const response = await apiClient.get(`/analysis/${sessionId}/plays`);
+  return response.data.plays || response.data;
 }
 
 export default apiClient;

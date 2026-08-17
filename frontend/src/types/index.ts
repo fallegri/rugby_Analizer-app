@@ -186,3 +186,22 @@ export interface OverlayData {
   boxes: OverlayBox[];
   paths: OverlayPath[];
 }
+
+export enum PlayType {
+  TACKLE = 'tackle',
+  SCRUM = 'scrum',
+  RUCK = 'ruck',
+  LINEOUT = 'lineout',
+  TRY = 'try',
+}
+
+export interface DetectedPlay {
+  play_type: PlayType;
+  start_time: number;
+  end_time: number;
+  confidence: number;
+  players_involved: string[];
+  position: { x: number; y: number };
+  description: string;
+  ai_explanation: string | null;
+}

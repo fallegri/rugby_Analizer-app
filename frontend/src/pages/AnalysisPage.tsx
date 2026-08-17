@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Play, Loader2, Download } from 'lucide-react';
+import { Play, Loader2, Download, Video, Activity, BarChart3, Crosshair, MessageSquare } from 'lucide-react';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { PlayerSelector } from '../components/PlayerSelector';
 import { FieldCalibration } from '../components/FieldCalibration';
@@ -9,10 +9,27 @@ import { AnalyticsDashboard } from '../components/AnalyticsDashboard';
 import { AIChat } from '../components/AIChat';
 import { TrackingModeSelector } from '../components/TrackingModeSelector';
 import { ProcessingStatus } from '../components/ProcessingStatus';
+import { PlaysTimeline } from '../components/PlaysTimeline';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { getVideo, startProcessing, getAnalysisStatus, getAnalysisResults, getAnalysisExport } from '../services/api';
 import { wsService } from '../services/websocket';
 import { AnalysisStatus, TrackingMode, TrackingResult, PlayerMetrics, PlayArea } from '../types';
+
+type TabId = 'video' | 'analisis' | 'metricas' | 'jugadas' | 'ia-chat';
+
+interface TabConfig {
+  id: TabId;
+  label: string;
+  icon: React.ElementType;
+}
+
+const tabs: TabConfig[] = [
+  { id: 'video', label: 'Video', icon: Video },
+  { id: 'analisis', label: 'Analisis', icon: Activity },
+  { id: 'metricas', label: 'Metricas', icon: BarChart3 },
+  { id: 'jugadas', label: 'Jugadas', icon: Crosshair },
+  { id: 'ia-chat', label: 'IA Chat', icon: MessageSquare },
+];
 
 /**
  * Transform raw backend results (from WebSocket/polling) into a TrackingResult
@@ -24,7 +41,6 @@ function transformBackendResults(
   videoId: string,
   mode: TrackingMode
 ): TrackingResult {
-  // The backend now sends a 'players' array in PlayerMetrics format
   const rawPlayers = (raw.players as Record<string, unknown>[] | undefined) || [];
 
   const players: PlayerMetrics[] = rawPlayers.map((p: Record<string, unknown>) => ({
@@ -77,6 +93,7 @@ export const AnalysisPage: React.FC = () => {
     setSessionId,
   } = useAnalysisStore();
 
+  const [activeTab, setActiveTab] = useState<TabId>('video');
   const [frameBlob, setFrameBlob] = useState<Blob | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +128,6 @@ export const AnalysisPage: React.FC = () => {
     pollingRef.current = setInterval(async () => {
       try {
         const statusData = await getAnalysisStatus(sessionId);
-        // Update progress from polling data
         if (statusData.progress !== undefined) {
           updateProgress(statusData.progress);
         }
@@ -121,11 +137,9 @@ export const AnalysisPage: React.FC = () => {
             totalFrames: statusData.total_frames,
           });
         }
-        // Check terminal states
         if (statusData.status === 'completed') {
           setProcessingStatus(AnalysisStatus.COMPLETED);
           stopPolling();
-          // Fetch full results from the REST endpoint as fallback
           try {
             const resultsData = await getAnalysisResults(sessionId);
             if (resultsData.results) {
@@ -163,11 +177,9 @@ export const AnalysisPage: React.FC = () => {
     const unsubMessage = wsService.onMessage((msg) => {
       switch (msg.type) {
         case 'progress':
-          // progress is at top level of the message
           if (msg.progress !== undefined) {
             updateProgress(msg.progress);
           }
-          // Rich processing details are in msg.data
           if (msg.data) {
             updateProcessingDetails({
               stage: msg.data.stage || '',
@@ -181,7 +193,6 @@ export const AnalysisPage: React.FC = () => {
           if (msg.status === 'completed') {
             setProcessingStatus(AnalysisStatus.COMPLETED);
             stopPolling();
-            // Transform and set results from the completed progress message
             if (msg.data?.results) {
               const transformed = transformBackendResults(
                 msg.data.results as Record<string, unknown>,
@@ -204,7 +215,6 @@ export const AnalysisPage: React.FC = () => {
             setProcessingStatus(AnalysisStatus.COMPLETED);
             stopPolling();
           } else if (msg.data?.results) {
-            // Fallback: transform raw results
             const transformed = transformBackendResults(
               msg.data.results as Record<string, unknown>,
               sessionIdRef.current || '',
@@ -235,7 +245,6 @@ export const AnalysisPage: React.FC = () => {
     try {
       const playerIds = selectedPlayers.map((p) => p.id);
 
-      // Build player selection bounding boxes for target acquisition
       const playerSelections = selectedPlayers.map((p) => ({
         x: p.x,
         y: p.y,
@@ -250,32 +259,25 @@ export const AnalysisPage: React.FC = () => {
           trackingMode === TrackingMode.SINGLE_PLAYER || trackingMode === TrackingMode.GROUP_TRACKING
             ? playerIds
             : undefined,
-        // Pass play_area for linear field transform
         play_area: playArea || undefined,
-        // Pass player selection bounding boxes for IoU-based target acquisition
         player_selections:
           (trackingMode === TrackingMode.SINGLE_PLAYER || trackingMode === TrackingMode.GROUP_TRACKING)
             ? playerSelections
             : undefined,
       };
 
-      // 1. First, call the API to start processing and get a session_id
       const response = await startProcessing(videoId, config);
       const sessionId = response.session_id;
       setSessionId(sessionId);
       sessionIdRef.current = sessionId;
       setProcessingStatus(AnalysisStatus.PROCESSING);
 
-      // 2. Subscribe to WebSocket messages BEFORE connecting
       if (wsUnsubRef.current) {
         wsUnsubRef.current();
       }
       wsUnsubRef.current = handleWebSocket();
 
-      // 3. Connect WebSocket to receive progress updates
       wsService.connect(sessionId);
-
-      // 4. Start polling fallback immediately (catches messages lost during WS setup)
       startPolling(sessionId);
 
     } catch {
@@ -323,89 +325,125 @@ export const AnalysisPage: React.FC = () => {
 
   const isProcessing = processingStatus === AnalysisStatus.PROCESSING;
 
-  return (
-    <div className="min-h-screen grid grid-rows-[auto_1fr_auto] gap-4 p-4">
-      {/* Top bar - Mode selector + controls */}
-      <div className="bg-gray-800/50 rounded-xl p-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <TrackingModeSelector />
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleStartProcessing}
-              disabled={isStarting || isProcessing}
-              className="flex items-center gap-2 px-5 py-2 bg-rugby-green text-white font-medium rounded-lg hover:bg-rugby-green/80 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isStarting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Play className="w-4 h-4" />
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'video':
+        return (
+          <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full">
+            <TrackingModeSelector />
+            <div className="relative">
+              <VideoPlayer
+                src={videoSrc}
+                onFrameCapture={handleFrameCapture}
+                overlayData={undefined}
+              />
+              {showPlayerSelector && (
+                <div className="absolute top-0 left-0 right-0 bottom-[52px] z-10">
+                  <PlayerSelector
+                    videoWidth={currentVideo?.width || 1920}
+                    videoHeight={currentVideo?.height || 1080}
+                    containerWidth={0}
+                    containerHeight={0}
+                    fillContainer
+                  />
+                </div>
               )}
-              {isStarting ? 'Starting...' : 'Start Analysis'}
-            </button>
-            {processingStatus === AnalysisStatus.COMPLETED && results && (
-              <button
-                onClick={handleExport}
-                className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
-              >
-                <Download className="w-4 h-4" />
-                Exportar Análisis
-              </button>
-            )}
-          </div>
-        </div>
-        {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
-      </div>
-
-      {/* Processing status bar - shown during processing */}
-      {isProcessing && (
-        <ProcessingStatus onRetry={handleRetry} />
-      )}
-
-      {/* Main content area */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
-        {/* Left panel - Video + Player selector */}
-        <div className="flex flex-col gap-4 overflow-y-auto">
-          <div className="relative">
-            <VideoPlayer
-              src={videoSrc}
-              onFrameCapture={handleFrameCapture}
-              overlayData={undefined}
+            </div>
+            <FieldCalibration
+              frameBlob={frameBlob}
+              videoWidth={currentVideo?.width || 1920}
+              videoHeight={currentVideo?.height || 1080}
+              containerWidth={640}
+              containerHeight={360}
+              onPlayAreaChange={setPlayArea}
             />
-
-            {showPlayerSelector && (
-              <div className="absolute top-0 left-0 right-0 bottom-[52px] z-10">
-                <PlayerSelector
-                  videoWidth={currentVideo?.width || 1920}
-                  videoHeight={currentVideo?.height || 1080}
-                  containerWidth={0}
-                  containerHeight={0}
-                  fillContainer
-                />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleStartProcessing}
+                disabled={isStarting || isProcessing}
+                className="flex items-center gap-2 px-5 py-2 bg-rugby-green text-white font-medium rounded-lg hover:bg-rugby-green/80 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isStarting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4" />
+                )}
+                {isStarting ? 'Starting...' : 'Start Analysis'}
+              </button>
+            </div>
+            {error && <p className="text-sm text-red-400">{error}</p>}
+          </div>
+        );
+      case 'analisis':
+        return (
+          <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full">
+            {isProcessing && <ProcessingStatus onRetry={handleRetry} />}
+            <FieldView players={results?.players || []} />
+          </div>
+        );
+      case 'metricas':
+        return (
+          <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full">
+            <AnalyticsDashboard players={results?.players || []} />
+            {processingStatus === AnalysisStatus.COMPLETED && results && (
+              <div className="flex justify-end">
+                <button
+                  onClick={handleExport}
+                  className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
+                >
+                  <Download className="w-4 h-4" />
+                  Exportar Analisis
+                </button>
               </div>
             )}
           </div>
+        );
+      case 'jugadas':
+        return (
+          <div className="h-full">
+            <PlaysTimeline />
+          </div>
+        );
+      case 'ia-chat':
+        return (
+          <div className="h-full">
+            <AIChat />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
-          <FieldCalibration
-            frameBlob={frameBlob}
-            videoWidth={currentVideo?.width || 1920}
-            videoHeight={currentVideo?.height || 1080}
-            containerWidth={640}
-            containerHeight={360}
-            onPlayAreaChange={setPlayArea}
-          />
-        </div>
+  return (
+    <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+      {/* Sidebar navigation */}
+      <nav className="w-56 bg-gray-900 border-r border-gray-700 flex flex-col" data-testid="sidebar-nav">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-rugby-gold/20 text-rugby-gold border-r-2 border-rugby-gold'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+              data-testid={`tab-${tab.id}`}
+            >
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </nav>
 
-        {/* Right panel - Field view + Analytics */}
-        <div className="flex flex-col gap-4 overflow-y-auto">
-          <FieldView players={results?.players || []} />
-          <AnalyticsDashboard players={results?.players || []} />
-        </div>
-      </div>
-
-      {/* Bottom panel - AI Chat */}
-      <div className="h-80">
-        <AIChat />
-      </div>
+      {/* Main content area */}
+      <main className="flex-1 bg-gray-800 overflow-hidden">
+        {renderTabContent()}
+      </main>
     </div>
   );
 };

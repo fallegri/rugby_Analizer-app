@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Frontend: Reorganize the AnalysisPage from a single cluttered 2-column grid into a tabbed/sidebar navigation layout with sections: Video, Analisis, Metricas, Jugadas, IA Chat. Add the Jugadas tab showing detected plays as timeline markers with AI explanations.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Add new types to frontend/src/types/index.ts: DetectedPlay interface with fields (play_type: string, start_time: number, end_time: number, confidence: number, players_involved: string[], position: {x: number, y: number}, description: string, ai_explanation: string | null). Add PlayType enum with values: tackle, scrum, ruck, lineout, try.",
     "Add new API functions in frontend/src/services/api.ts: detectPlays(sessionId: string) calling POST /api/analysis/{sessionId}/detect-plays, and getPlays(sessionId: string) calling GET /api/analysis/{sessionId}/plays returning DetectedPlay[].",

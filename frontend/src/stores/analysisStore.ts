@@ -6,6 +6,7 @@ import {
   FieldCalibration,
   AnalysisStatus,
   TrackingResult,
+  DetectedPlay,
 } from '../types';
 
 export interface ProcessingDetails {
@@ -28,6 +29,8 @@ interface AnalysisState {
   processingDetails: ProcessingDetails;
   results: TrackingResult | null;
   sessionId: string | null;
+  detectedPlays: DetectedPlay[];
+  isDetectingPlays: boolean;
 }
 
 interface AnalysisActions {
@@ -41,6 +44,8 @@ interface AnalysisActions {
   setProcessingStatus: (status: AnalysisStatus) => void;
   setResults: (results: TrackingResult | null) => void;
   setSessionId: (id: string | null) => void;
+  setDetectedPlays: (plays: DetectedPlay[]) => void;
+  setIsDetectingPlays: (val: boolean) => void;
   resetAnalysis: () => void;
 }
 
@@ -64,6 +69,8 @@ const initialState: AnalysisState = {
   processingDetails: initialProcessingDetails,
   results: null,
   sessionId: null,
+  detectedPlays: [],
+  isDetectingPlays: false,
 };
 
 export const useAnalysisStore = create<AnalysisState & AnalysisActions>()((set) => ({
@@ -101,6 +108,10 @@ export const useAnalysisStore = create<AnalysisState & AnalysisActions>()((set) 
   setResults: (results) => set({ results }),
 
   setSessionId: (id) => set({ sessionId: id }),
+
+  setDetectedPlays: (plays) => set({ detectedPlays: plays }),
+
+  setIsDetectingPlays: (val) => set({ isDetectingPlays: val }),
 
   resetAnalysis: () => set(initialState),
 }));
