@@ -13,5 +13,7 @@ RUN uv sync --no-dev --frozen
 COPY backend/src ./src
 RUN mkdir -p uploads models
 
+ENV PATH="/app/.venv/bin:$PATH"
+
 EXPOSE 8000
 CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
