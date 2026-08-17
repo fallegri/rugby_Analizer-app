@@ -2,7 +2,7 @@
   "id": "FEAT-012",
   "type": "feat",
   "description": "Animated player movement in FieldView: Players move along their routes following timestamps, with time slider, play/pause controls, speed control, and trail/estela visualization. Works for all tracking modes.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Add animation state (currentTime, isPlaying, playbackSpeed) and controls to FieldView.tsx",
     "Implement time interpolation logic to compute player positions at any given timestamp",
@@ -26,5 +26,5 @@
     "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All 30 frontend tests pass. Frontend build succeeds (chunk size warning is pre-existing at ~1013KB). Animation uses requestAnimationFrame with delta-time calculation for smooth playback. The interpolatePosition function handles edge cases (before first point, after last point, exact match). Heat map rendering is also filtered by current time. The existing FieldView test still passes since it only checks for the 'Field View' heading text."
 }
