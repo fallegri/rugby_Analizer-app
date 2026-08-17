@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Frontend: Reorganize the AnalysisPage from a single cluttered 2-column grid into a tabbed/sidebar navigation layout with sections: Video, Analisis, Metricas, Jugadas, IA Chat. Add the Jugadas tab showing detected plays as timeline markers with AI explanations.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Add new types to frontend/src/types/index.ts: DetectedPlay interface with fields (play_type: string, start_time: number, end_time: number, confidence: number, players_involved: string[], position: {x: number, y: number}, description: string, ai_explanation: string | null). Add PlayType enum with values: tackle, scrum, ruck, lineout, try.",
     "Add new API functions in frontend/src/services/api.ts: detectPlays(sessionId: string) calling POST /api/analysis/{sessionId}/detect-plays, and getPlays(sessionId: string) calling GET /api/analysis/{sessionId}/plays returning DetectedPlay[].",
@@ -26,5 +26,5 @@
     "cd frontend && npm run test -- --run"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 35 tests pass (5 new PlaysTimeline tests + 30 existing). Build succeeds without errors. Used dark theme styling consistent with the rest of the app. The sidebar uses w-56 width with rugby-gold accent for active tabs."
 }
