@@ -20,15 +20,16 @@ def _check_gpu_availability() -> dict:
 
         cuda_available = torch.cuda.is_available()
         if cuda_available:
+            props = torch.cuda.get_device_properties(0)
             return {
                 "available": True,
                 "device_name": torch.cuda.get_device_name(0),
                 "device_count": torch.cuda.device_count(),
-                "memory_total": torch.cuda.get_device_properties(0).total_mem,
+                "memory_total": getattr(props, "total_memory", getattr(props, "total_mem", 0)),
             }
         return {"available": False, "reason": "CUDA not available"}
-    except ImportError:
-        return {"available": False, "reason": "PyTorch not installed"}
+    except (ImportError, Exception) as e:
+        return {"available": False, "reason": str(e)}
 
 
 @router.get("/health")
