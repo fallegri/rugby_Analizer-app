@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Implement per-player heatmap visualization in FieldView, player comparison table, time-zone analysis with intensity chart, and RSA (Repeated Sprint Ability) detection with frontend display. These are all frontend analytics features with the RSA computation done in the backend analytics engine.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "HEATMAP PER PLAYER: Enhance FieldView.tsx to support per-player heatmap toggle. Add a `selectedHeatMapPlayers` state (array of player_ids). In the player legend area, add a toggle/checkbox next to each player to enable/disable their individual heatmap. Replace the current renderHeatMap() with a grid-based heatmap approach: divide the field into cells (e.g., 10x7 grid), count route points per cell for each selected player, and render colored rectangles with opacity proportional to density. Use the player's assigned color from PLAYER_COLORS. The existing `showHeatMap` prop should activate the heatmap panel/controls.",
     "PLAYER COMPARISON: Create a new component `frontend/src/components/PlayerComparison.tsx`. Provide two dropdowns to select Player A and Player B from the available players list. Display a side-by-side table comparing: total_distance_km, max_speed_kmh, avg_speed_kmh, sprint_count, active time (derived from route timestamps: last - first). Highlight the winner of each metric in green. Add a ranking section at the bottom showing all players sorted by each metric.",
@@ -30,5 +30,5 @@
     "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All acceptance criteria met. Backend RSA tests (10 tests) pass. Frontend tests (47 tests) all pass. Frontend build compiles without TypeScript errors. The showHeatMap prop on FieldView interface is retained for backwards compatibility but the heatmap is now controlled by per-player toggles in the legend area. Minor act() warning in PlayerComparison test is non-critical (React testing library best-practice warning, not a failure)."
 }
