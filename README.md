@@ -1,3 +1,12 @@
+---
+title: Rugby Analyzer
+emoji: 🏉
+colorFrom: green
+colorTo: blue
+sdk: docker
+app_port: 7860
+---
+
 # Rugby Analyzer
 
 Full-stack web application for analyzing rugby match videos using computer vision and AI.
@@ -33,6 +42,18 @@ cd ../frontend && npm install && npm run dev
 
 ```bash
 docker-compose up --build
+```
+
+## Hugging Face Spaces Deployment
+
+This app is configured for deployment on Hugging Face Spaces using Docker SDK.
+A single container runs both the frontend (nginx on port 7860) and backend (uvicorn on port 8000)
+managed by supervisord.
+
+```bash
+# Build the HF Spaces container locally
+docker build -t rugby-analyzer .
+docker run -p 7860:7860 rugby-analyzer
 ```
 
 ## Commands

@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-013",
+  "type": "feat",
+  "description": "Hugging Face Spaces deployment (single container serving frontend + backend via supervisord) and auto-cleanup: delete video file after processing, persist metadata and analysis results to results/ directory as JSON files.",
+  "status": "in_progress",
+  "steps": [
+    "Create root Dockerfile for HF Spaces: multi-stage build (frontend build, backend deps, final with nginx + supervisord)",
+    "Create supervisord.conf to run nginx (port 7860) and uvicorn (port 8000) in parallel",
+    "Create nginx.conf for HF Spaces (listen 7860, proxy /api and /ws to localhost:8000)",
+    "Update README.md with HF Spaces metadata header while preserving existing content",
+    "Modify backend/src/api/routes/video.py: accept optional description field in upload",
+    "Modify backend/src/services/background_tasks.py: auto-delete video after processing, persist results JSON to results/ directory",
+    "Create results/ directory with .gitkeep",
+    "Verify build and tests pass"
+  ],
+  "acceptance_criteria": [
+    "Root Dockerfile builds a single container with frontend (nginx on 7860) and backend (uvicorn on 8000)",
+    "supervisord manages both nginx and uvicorn processes",
+    "README.md has HF Spaces metadata header (title, emoji, colorFrom, colorTo, sdk: docker, app_port: 7860)",
+    "Video upload endpoint accepts optional description field stored in metadata",
+    "After processing completes, the video file is deleted from disk",
+    "After processing completes, a JSON file is saved to results/ with video_name, video_description, analysis_date, session_id, mode, players metrics, detected plays",
+    "results/ directory exists in repo with .gitkeep",
+    "All existing tests pass",
+    "Frontend builds without errors"
+  ],
+  "verification": [
+    "cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

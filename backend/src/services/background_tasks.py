@@ -6,9 +6,12 @@ Sends rich progress updates with stages, timing, and FPS info.
 """
 
 import asyncio
+import json
 import logging
 import math
+import os
 import time
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -42,6 +45,7 @@ class BackgroundTaskManager:
         analysis_service: Any,
         ws_manager: Optional[Any] = None,
         video_processor: Optional[Any] = None,
+        video_metadata: Optional[dict] = None,
     ) -> None:
         """Start a background video processing task.
 
@@ -53,6 +57,7 @@ class BackgroundTaskManager:
             analysis_service: Service for updating session state.
             ws_manager: WebSocket manager for progress broadcasts.
             video_processor: VideoProcessor instance (injected for testability).
+            video_metadata: Video metadata dict (filename, description) for result persistence.
         """
         task = asyncio.create_task(
             self._process_video_task(
@@ -63,6 +68,7 @@ class BackgroundTaskManager:
                 analysis_service=analysis_service,
                 ws_manager=ws_manager,
                 video_processor=video_processor,
+                video_metadata=video_metadata,
             )
         )
         self._active_tasks[session_id] = task
@@ -77,11 +83,13 @@ class BackgroundTaskManager:
         analysis_service: Any,
         ws_manager: Optional[Any] = None,
         video_processor: Optional[Any] = None,
+        video_metadata: Optional[dict] = None,
     ) -> None:
         """Execute the video processing pipeline as a background task.
 
         Sends rich progress messages including stage name, frame info,
         elapsed time, ETA, FPS, and a heartbeat timestamp for stall detection.
+        After completion, deletes the video file and persists results to disk.
 
         Args:
             session_id: The analysis session ID.
@@ -91,6 +99,7 @@ class BackgroundTaskManager:
             analysis_service: Service for updating progress/results.
             ws_manager: WebSocket connection manager for broadcasting.
             video_processor: VideoProcessor instance.
+            video_metadata: Video metadata dict (filename, description).
         """
         try:
             if video_processor is None:
@@ -285,6 +294,15 @@ class BackgroundTaskManager:
 
             analysis_service.mark_completed(session_id, results_dict)
 
+            # Auto-cleanup: persist results to disk and delete video file
+            self._persist_results(
+                session_id=session_id,
+                mode=mode,
+                results_dict=results_dict,
+                video_metadata=video_metadata,
+            )
+            self._cleanup_video_file(video_path, session_id)
+
             # Send completion notification via WebSocket
             if ws_manager:
                 total_elapsed = time.time() - start_time
@@ -340,6 +358,85 @@ class BackgroundTaskManager:
                 )
         finally:
             self._active_tasks.pop(session_id, None)
+
+    def _cleanup_video_file(self, video_path: str, session_id: str) -> None:
+        """Delete the video file from disk after processing completes.
+
+        Args:
+            video_path: Path to the video file to delete.
+            session_id: Session ID for logging.
+        """
+        try:
+            if video_path and os.path.exists(video_path):
+                os.remove(video_path)
+                logger.info(
+                    f"[Session {session_id}] Auto-cleanup: deleted video file {video_path}"
+                )
+            else:
+                logger.debug(
+                    f"[Session {session_id}] Auto-cleanup: video file not found at {video_path}"
+                )
+        except OSError as e:
+            logger.warning(
+                f"[Session {session_id}] Auto-cleanup: failed to delete video file "
+                f"{video_path}: {e}"
+            )
+
+    def _persist_results(
+        self,
+        session_id: str,
+        mode: str,
+        results_dict: dict[str, Any],
+        video_metadata: Optional[dict] = None,
+    ) -> None:
+        """Persist analysis results to a JSON file in the results/ directory.
+
+        Saves video metadata (name, description, processing timestamp, session_id)
+        along with the full analysis results.
+
+        Args:
+            session_id: The analysis session ID.
+            mode: Tracking mode used.
+            results_dict: The analysis results dictionary.
+            video_metadata: Video metadata dict with filename and description.
+        """
+        try:
+            results_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                "results",
+            )
+            os.makedirs(results_dir, exist_ok=True)
+
+            video_name = ""
+            video_description = None
+            if video_metadata:
+                video_name = video_metadata.get("filename", "")
+                video_description = video_metadata.get("description")
+
+            analysis_record = {
+                "video_name": video_name,
+                "video_description": video_description,
+                "analysis_date": datetime.now(timezone.utc).isoformat(),
+                "session_id": session_id,
+                "mode": mode,
+                "players": results_dict.get("players", []),
+                "detected_plays": results_dict.get("detected_plays", []),
+                "total_frames": results_dict.get("total_frames"),
+                "fps": results_dict.get("fps"),
+                "duration_s": results_dict.get("duration_s"),
+            }
+
+            result_file = os.path.join(results_dir, f"{session_id}.json")
+            with open(result_file, "w", encoding="utf-8") as f:
+                json.dump(analysis_record, f, indent=2, ensure_ascii=False)
+
+            logger.info(
+                f"[Session {session_id}] Persisted results to {result_file}"
+            )
+        except Exception as e:
+            logger.warning(
+                f"[Session {session_id}] Failed to persist results: {e}"
+            )
 
     async def cancel_task(self, session_id: str) -> bool:
         """Cancel an active processing task.

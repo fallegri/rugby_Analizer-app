@@ -9,7 +9,7 @@ import os
 from typing import Any, Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -36,6 +36,7 @@ class VideoMetadata(BaseModel):
     id: str
     filename: str
     status: VideoStatus
+    description: Optional[str] = None
     file_path: Optional[str] = None
     size_bytes: Optional[int] = None
     duration: Optional[float] = None
@@ -68,7 +69,10 @@ class ProcessingResult(BaseModel):
 
 
 @router.post("/upload", response_model=VideoMetadata, status_code=status.HTTP_201_CREATED)
-async def upload_video(file: UploadFile = File(...)) -> VideoMetadata:
+async def upload_video(
+    file: UploadFile = File(...),
+    description: Optional[str] = Form(default=None),
+) -> VideoMetadata:
     """Upload a video file for analysis.
 
     Validates file format, magic bytes, and size, saves to the uploads directory,
@@ -76,6 +80,7 @@ async def upload_video(file: UploadFile = File(...)) -> VideoMetadata:
 
     Args:
         file: Multipart file upload.
+        description: Optional description of the video content.
 
     Returns:
         VideoMetadata with the saved video information.
@@ -136,6 +141,7 @@ async def upload_video(file: UploadFile = File(...)) -> VideoMetadata:
         "id": video_id,
         "filename": file.filename,
         "status": VideoStatus.UPLOADED,
+        "description": description,
         "file_path": file_path,
         "size_bytes": size_bytes,
         "duration": None,
@@ -419,6 +425,10 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
         analysis_service=analysis_service,
         ws_manager=ws_manager,
         video_processor=video_processor,
+        video_metadata={
+            "filename": video.get("filename", ""),
+            "description": video.get("description"),
+        },
     )
 
     logger.info(
