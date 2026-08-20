@@ -188,7 +188,7 @@ export const FieldCalibration: React.FC<FieldCalibrationProps> = ({
       const dw = Math.abs(dragCurrent.x - dragStart.x) * MF_SCALE_X;
       const dh = Math.abs(dragCurrent.y - dragStart.y) * MF_SCALE_Y;
       dragRect = (
-        <rect x={dx} y={dy} width={dw} height={dh} fill="rgba(196, 168, 79, 0.3)" stroke="#c4a84f" strokeWidth={2} strokeDasharray="6,3" />
+        <rect x={dx} y={dy} width={dw} height={dh} fill="rgba(196, 168, 79, 0.3)" stroke="#c4a84f" strokeWidth={2} strokeDasharray="6,3" pointerEvents="none" />
       );
     }
 
@@ -197,35 +197,35 @@ export const FieldCalibration: React.FC<FieldCalibrationProps> = ({
         ref={fieldSvgRef}
         width="100%"
         viewBox={`0 0 ${MINI_FIELD_W} ${MINI_FIELD_H}`}
-        className="cursor-crosshair border border-gray-600 rounded"
+        className="cursor-crosshair border border-gray-600 rounded select-none"
         onMouseDown={handleFieldMouseDown}
         onMouseMove={handleFieldMouseMove}
         onMouseUp={handleFieldMouseUp}
         onMouseLeave={handleFieldMouseUp}
       >
-        {/* Field background */}
+        {/* Field background - captures all pointer events */}
         <rect x={0} y={0} width={MINI_FIELD_W} height={MINI_FIELD_H} fill="#1a5c2e" />
         {/* Touchlines */}
-        <rect x={0} y={0} width={MINI_FIELD_W} height={MINI_FIELD_H} fill="none" stroke="white" strokeWidth={2} />
+        <rect x={0} y={0} width={MINI_FIELD_W} height={MINI_FIELD_H} fill="none" stroke="white" strokeWidth={2} pointerEvents="none" />
         {/* Try lines */}
-        <line x1={0} y1={0} x2={0} y2={MINI_FIELD_H} stroke="white" strokeWidth={2} />
-        <line x1={MINI_FIELD_W} y1={0} x2={MINI_FIELD_W} y2={MINI_FIELD_H} stroke="white" strokeWidth={2} />
+        <line x1={0} y1={0} x2={0} y2={MINI_FIELD_H} stroke="white" strokeWidth={2} pointerEvents="none" />
+        <line x1={MINI_FIELD_W} y1={0} x2={MINI_FIELD_W} y2={MINI_FIELD_H} stroke="white" strokeWidth={2} pointerEvents="none" />
         {/* 22m lines */}
-        <line x1={22 * MF_SCALE_X} y1={0} x2={22 * MF_SCALE_X} y2={MINI_FIELD_H} stroke="white" strokeWidth={1} />
-        <line x1={78 * MF_SCALE_X} y1={0} x2={78 * MF_SCALE_X} y2={MINI_FIELD_H} stroke="white" strokeWidth={1} />
+        <line x1={22 * MF_SCALE_X} y1={0} x2={22 * MF_SCALE_X} y2={MINI_FIELD_H} stroke="white" strokeWidth={1} pointerEvents="none" />
+        <line x1={78 * MF_SCALE_X} y1={0} x2={78 * MF_SCALE_X} y2={MINI_FIELD_H} stroke="white" strokeWidth={1} pointerEvents="none" />
         {/* 10m lines (dashed) */}
-        <line x1={40 * MF_SCALE_X} y1={0} x2={40 * MF_SCALE_X} y2={MINI_FIELD_H} stroke="white" strokeWidth={1} strokeDasharray="6,3" />
-        <line x1={60 * MF_SCALE_X} y1={0} x2={60 * MF_SCALE_X} y2={MINI_FIELD_H} stroke="white" strokeWidth={1} strokeDasharray="6,3" />
+        <line x1={40 * MF_SCALE_X} y1={0} x2={40 * MF_SCALE_X} y2={MINI_FIELD_H} stroke="white" strokeWidth={1} strokeDasharray="6,3" pointerEvents="none" />
+        <line x1={60 * MF_SCALE_X} y1={0} x2={60 * MF_SCALE_X} y2={MINI_FIELD_H} stroke="white" strokeWidth={1} strokeDasharray="6,3" pointerEvents="none" />
         {/* Halfway line */}
-        <line x1={50 * MF_SCALE_X} y1={0} x2={50 * MF_SCALE_X} y2={MINI_FIELD_H} stroke="white" strokeWidth={1.5} />
+        <line x1={50 * MF_SCALE_X} y1={0} x2={50 * MF_SCALE_X} y2={MINI_FIELD_H} stroke="white" strokeWidth={1.5} pointerEvents="none" />
         {/* Center mark */}
-        <circle cx={50 * MF_SCALE_X} cy={35 * MF_SCALE_Y} r={2} fill="white" />
-        {/* Labels */}
-        <text x={50 * MF_SCALE_X} y={MINI_FIELD_H - 4} textAnchor="middle" fill="#aaa" fontSize={9}>50m</text>
-        <text x={22 * MF_SCALE_X} y={MINI_FIELD_H - 4} textAnchor="middle" fill="#aaa" fontSize={9}>22m</text>
-        <text x={78 * MF_SCALE_X} y={MINI_FIELD_H - 4} textAnchor="middle" fill="#aaa" fontSize={9}>22m</text>
-        <text x={0 + 8} y={MINI_FIELD_H - 4} fill="#aaa" fontSize={9}>0m</text>
-        <text x={MINI_FIELD_W - 24} y={MINI_FIELD_H - 4} fill="#aaa" fontSize={9}>100m</text>
+        <circle cx={50 * MF_SCALE_X} cy={35 * MF_SCALE_Y} r={2} fill="white" pointerEvents="none" />
+        {/* Distance labels - pointer-events disabled so they don't interfere with rectangle drawing */}
+        <text x={50 * MF_SCALE_X} y={MINI_FIELD_H - 4} textAnchor="middle" fill="#aaa" fontSize={9} pointerEvents="none">50m</text>
+        <text x={22 * MF_SCALE_X} y={MINI_FIELD_H - 4} textAnchor="middle" fill="#aaa" fontSize={9} pointerEvents="none">22m</text>
+        <text x={78 * MF_SCALE_X} y={MINI_FIELD_H - 4} textAnchor="middle" fill="#aaa" fontSize={9} pointerEvents="none">22m</text>
+        <text x={0 + 8} y={MINI_FIELD_H - 4} fill="#aaa" fontSize={9} pointerEvents="none">0m</text>
+        <text x={MINI_FIELD_W - 24} y={MINI_FIELD_H - 4} fill="#aaa" fontSize={9} pointerEvents="none">100m</text>
 
         {/* Current play area rectangle */}
         <rect
@@ -236,16 +236,17 @@ export const FieldCalibration: React.FC<FieldCalibrationProps> = ({
           fill="rgba(196, 168, 79, 0.25)"
           stroke="#c4a84f"
           strokeWidth={2}
+          pointerEvents="none"
         />
 
         {/* Dragging preview */}
         {dragRect}
 
         {/* Play area label */}
-        <text x={areaX + areaW / 2} y={areaY + areaH / 2 + 4} textAnchor="middle" fill="white" fontSize={11} fontWeight="bold">
+        <text x={areaX + areaW / 2} y={areaY + areaH / 2 + 4} textAnchor="middle" fill="white" fontSize={11} fontWeight="bold" pointerEvents="none">
           Zona visible
         </text>
-        <text x={areaX + areaW / 2} y={areaY + areaH / 2 + 18} textAnchor="middle" fill="#ddd" fontSize={9}>
+        <text x={areaX + areaW / 2} y={areaY + areaH / 2 + 18} textAnchor="middle" fill="#ddd" fontSize={9} pointerEvents="none">
           {Math.round(playArea.x_max - playArea.x_min)}m x {Math.round(playArea.y_max - playArea.y_min)}m
         </text>
       </svg>
