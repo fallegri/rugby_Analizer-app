@@ -1,0 +1,7 @@
+{
+  "task_id": "task-rugby-5-features",
+  "task_description": "Implement 5 new features for the rugby analysis system: per-player heatmap, player comparison table, time-zone analysis, PDF report generation, and RSA (Repeated Sprint Ability) detection.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

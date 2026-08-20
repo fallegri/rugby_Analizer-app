@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Implement PDF report generation. Backend endpoint that generates a professional PDF with video metadata, player metrics, field map with routes, detected plays, and speed charts. Frontend button to trigger and download the PDF.",
+  "status": "pending",
+  "steps": [
+    "BACKEND DEPENDENCY: Add `reportlab>=4.0.0` to backend/pyproject.toml dependencies. Run `cd backend && uv sync` to install it.",
+    "BACKEND PDF SERVICE: Create `backend/src/services/pdf_report_service.py`. Implement a PDFReportService class with a `generate_report()` method. Use reportlab to generate a professional PDF containing: (1) Title page with 'Rugby Analyzer Report' and generation timestamp. (2) Video metadata section (video_id, duration, mode, fps). (3) Per-player metrics table (player_id, distance, max_speed, avg_speed, sprint_count). (4) Field diagram with player routes drawn as colored lines on a green rectangle representing the rugby field (using reportlab drawing primitives). (5) Detected plays section listing each play type, time, and description. (6) Speed chart - a simple line chart drawn with reportlab showing speed over time for each player. The method should accept session results dict and return bytes (the PDF content).",
+    "BACKEND ENDPOINT: Add a new endpoint GET `/api/analysis/{session_id}/report/pdf` in `backend/src/api/routes/analysis.py`. It should: retrieve session results, call PDFReportService.generate_report(), return a StreamingResponse with content_type='application/pdf' and Content-Disposition header for download.",
+    "FRONTEND API: Add a function `downloadPDFReport(sessionId: string)` in `frontend/src/services/api.ts` that calls the endpoint with responseType 'blob' and triggers a browser download using URL.createObjectURL and a temporary <a> link.",
+    "FRONTEND BUTTON: In `frontend/src/pages/AnalysisPage.tsx`, in the 'metricas' tab section (near the existing 'Exportar Analisis' button), add a 'Generar Reporte PDF' button that calls downloadPDFReport(sessionId). Show it only when processingStatus === COMPLETED. Use a FileText icon from lucide-react.",
+    "BACKEND TEST: Create `backend/tests/unit/test_pdf_report.py` that tests the PDFReportService.generate_report() with mock data. Verify it returns non-empty bytes that start with the PDF magic bytes (%PDF)."
+  ],
+  "acceptance_criteria": [
+    "Backend endpoint GET /api/analysis/{session_id}/report/pdf returns a PDF file response",
+    "PDFReportService generates a valid PDF with player metrics, field routes diagram, and plays list",
+    "Frontend shows 'Generar Reporte PDF' button in metricas tab when analysis is completed",
+    "Clicking the button triggers a PDF download",
+    "Backend test for PDF generation passes",
+    "All existing tests continue to pass",
+    "Frontend builds without TypeScript errors"
+  ],
+  "verification": [
+    "cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

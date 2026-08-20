@@ -49,6 +49,27 @@ class AnalyticsResult:
     route_points: list[tuple[float, float, float]] = field(default_factory=list)
 
 
+@dataclass
+class RSAResult:
+    """Result of Repeated Sprint Ability (RSA) analysis.
+
+    Attributes:
+        repeated_sprint_count: Number of sprints that are part of repeated sprint clusters.
+        avg_recovery_time_s: Average recovery time between consecutive sprints in clusters.
+        max_recovery_time_s: Maximum recovery time between consecutive sprints in clusters.
+        min_recovery_time_s: Minimum recovery time between consecutive sprints in clusters.
+        speed_degradation_percent: Average percentage speed drop from first to last sprint in clusters.
+        sprint_clusters: List of sprint groups where sprints are within the window threshold.
+    """
+
+    repeated_sprint_count: int = 0
+    avg_recovery_time_s: float = 0.0
+    max_recovery_time_s: float = 0.0
+    min_recovery_time_s: float = 0.0
+    speed_degradation_percent: float = 0.0
+    sprint_clusters: list[list[SprintSegment]] = field(default_factory=list)
+
+
 class AnalyticsEngine:
     """Computes performance metrics from track histories.
 
@@ -208,3 +229,94 @@ class AnalyticsEngine:
             )
 
         return segments
+
+    def compute_rsa(
+        self,
+        sprint_segments: list[SprintSegment],
+        fps: Optional[float] = None,
+        window_seconds: float = 30.0,
+    ) -> RSAResult:
+        """Compute Repeated Sprint Ability (RSA) metrics.
+
+        Groups consecutive sprints where the gap between the end of one sprint
+        and the start of the next is less than window_seconds. A cluster with
+        2 or more sprints counts as repeated sprints.
+
+        Args:
+            sprint_segments: List of SprintSegment objects to analyze.
+            fps: Frames per second for time conversion. Defaults to engine fps.
+            window_seconds: Maximum gap in seconds between sprints to be
+                considered part of the same cluster.
+
+        Returns:
+            RSAResult with RSA metrics.
+        """
+        if fps is None:
+            fps = self.fps
+
+        if not sprint_segments or len(sprint_segments) < 2:
+            return RSAResult()
+
+        # Sort sprints by start_frame
+        sorted_sprints = sorted(sprint_segments, key=lambda s: s.start_frame)
+
+        # Group consecutive sprints into clusters where gap < window_seconds
+        clusters: list[list[SprintSegment]] = []
+        current_cluster: list[SprintSegment] = [sorted_sprints[0]]
+
+        for i in range(1, len(sorted_sprints)):
+            prev_sprint = sorted_sprints[i - 1]
+            curr_sprint = sorted_sprints[i]
+
+            # Recovery time = start of next sprint - end of previous sprint
+            gap_seconds = (curr_sprint.start_frame - prev_sprint.end_frame) / fps
+
+            if gap_seconds < window_seconds:
+                current_cluster.append(curr_sprint)
+            else:
+                clusters.append(current_cluster)
+                current_cluster = [curr_sprint]
+
+        clusters.append(current_cluster)
+
+        # Filter clusters with 2+ sprints (repeated sprints)
+        rsa_clusters = [c for c in clusters if len(c) >= 2]
+
+        if not rsa_clusters:
+            return RSAResult()
+
+        # Count total repeated sprints
+        repeated_sprint_count = sum(len(c) for c in rsa_clusters)
+
+        # Compute recovery times between consecutive sprints in clusters
+        recovery_times: list[float] = []
+        for cluster in rsa_clusters:
+            for i in range(1, len(cluster)):
+                recovery = (cluster[i].start_frame - cluster[i - 1].end_frame) / fps
+                recovery_times.append(recovery)
+
+        avg_recovery = sum(recovery_times) / len(recovery_times) if recovery_times else 0.0
+        max_recovery = max(recovery_times) if recovery_times else 0.0
+        min_recovery = min(recovery_times) if recovery_times else 0.0
+
+        # Compute speed degradation: average % drop from first to last sprint in each cluster
+        degradations: list[float] = []
+        for cluster in rsa_clusters:
+            first_speed = cluster[0].max_speed_kmh
+            last_speed = cluster[-1].max_speed_kmh
+            if first_speed > 0:
+                degradation = ((first_speed - last_speed) / first_speed) * 100.0
+                degradations.append(degradation)
+
+        speed_degradation_percent = (
+            sum(degradations) / len(degradations) if degradations else 0.0
+        )
+
+        return RSAResult(
+            repeated_sprint_count=repeated_sprint_count,
+            avg_recovery_time_s=avg_recovery,
+            max_recovery_time_s=max_recovery,
+            min_recovery_time_s=min_recovery,
+            speed_degradation_percent=speed_degradation_percent,
+            sprint_clusters=rsa_clusters,
+        )

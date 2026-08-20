@@ -205,3 +205,16 @@ export interface DetectedPlay {
   description: string;
   ai_explanation: string | null;
 }
+
+export interface RSAMetrics {
+  repeated_sprint_count: number;
+  avg_recovery_time_s: number;
+  max_recovery_time_s: number;
+  min_recovery_time_s: number;
+  speed_degradation_percent: number;
+  sprint_clusters: {
+    sprints: SprintSegment[];
+    window_start: number;
+    window_end: number;
+  }[];
+}

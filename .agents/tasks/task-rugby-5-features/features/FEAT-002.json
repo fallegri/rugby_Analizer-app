@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement per-player heatmap visualization in FieldView, player comparison table, time-zone analysis with intensity chart, and RSA (Repeated Sprint Ability) detection with frontend display. These are all frontend analytics features with the RSA computation done in the backend analytics engine.",
+  "status": "in_progress",
+  "steps": [
+    "HEATMAP PER PLAYER: Enhance FieldView.tsx to support per-player heatmap toggle. Add a `selectedHeatMapPlayers` state (array of player_ids). In the player legend area, add a toggle/checkbox next to each player to enable/disable their individual heatmap. Replace the current renderHeatMap() with a grid-based heatmap approach: divide the field into cells (e.g., 10x7 grid), count route points per cell for each selected player, and render colored rectangles with opacity proportional to density. Use the player's assigned color from PLAYER_COLORS. The existing `showHeatMap` prop should activate the heatmap panel/controls.",
+    "PLAYER COMPARISON: Create a new component `frontend/src/components/PlayerComparison.tsx`. Provide two dropdowns to select Player A and Player B from the available players list. Display a side-by-side table comparing: total_distance_km, max_speed_kmh, avg_speed_kmh, sprint_count, active time (derived from route timestamps: last - first). Highlight the winner of each metric in green. Add a ranking section at the bottom showing all players sorted by each metric.",
+    "TIME ZONE ANALYSIS: Create a new component `frontend/src/components/TimeZoneAnalysis.tsx`. Accept a `players` prop (PlayerMetrics[]). Allow the user to configure a segment duration (default 5 seconds) via an input field. Divide the total time range into segments. For each segment, compute per-player metrics: distance covered, average speed, number of sprints in that window. Display a bar chart (using recharts BarChart) showing intensity (avg speed or distance) per period for each player. Show a summary table below with metrics per time segment.",
+    "RSA BACKEND: Add a new method `compute_rsa()` to the AnalyticsEngine class in `backend/src/cv/analytics.py`. Parameters: sprint_segments (list of SprintSegment), fps, window_seconds=30. Logic: For each sprint, look at sprints within a sliding 30-second window. Count sprints that are within 30s of each other as 'repeated sprints'. Compute: repeated_sprint_count, recovery_times (list of seconds between consecutive sprints), speed_degradation (list of speed differences between consecutive sprints). Return a new dataclass RSAResult with fields: repeated_sprint_count, avg_recovery_time_s, max_recovery_time_s, min_recovery_time_s, speed_degradation_percent (average % drop from first to last sprint in clusters), sprint_clusters (list of sprint groups within windows).",
+    "RSA BACKEND INTEGRATION: In `backend/src/services/background_tasks.py` or wherever the final analytics results are assembled for the response, include RSA data in the player results dict. Add RSA fields to the response: rsa_repeated_sprint_count, rsa_avg_recovery_time, rsa_speed_degradation. Also add a new endpoint GET `/api/analysis/{session_id}/rsa` in the analysis routes that computes and returns RSA metrics for all players.",
+    "RSA FRONTEND TYPES: Add RSAMetrics interface to `frontend/src/types/index.ts` with fields: repeated_sprint_count, avg_recovery_time_s, max_recovery_time_s, min_recovery_time_s, speed_degradation_percent, sprint_clusters (array of {sprints: SprintSegment[], window_start: number, window_end: number}).",
+    "RSA FRONTEND COMPONENT: Create `frontend/src/components/RSAAnalysis.tsx`. Accept `players: PlayerMetrics[]` as prop. Compute RSA metrics client-side from the player's sprints array (since all sprint data is already available on the frontend): for each player, find sprints within 30-second windows, calculate recovery times (gap between end of one sprint and start of next), calculate speed degradation. Display per-player cards showing: repeated sprint count, average recovery time, speed degradation percentage. Add a bar chart showing sprint speed over sequential sprints to visualize degradation.",
+    "INTEGRATE INTO ANALYSIS PAGE: In `frontend/src/pages/AnalysisPage.tsx`, in the 'metricas' tab content, add the PlayerComparison, TimeZoneAnalysis, and RSAAnalysis components below the existing AnalyticsDashboard. Pass `results?.players || []` as props. In the 'analisis' tab, the FieldView already receives players - the heatmap toggle is internal to FieldView.",
+    "ADD TESTS: Add unit tests in `backend/tests/unit/test_rsa.py` for the RSA computation with known sprint data. Add frontend tests in `frontend/src/__tests__/PlayerComparison.test.tsx` and `frontend/src/__tests__/RSAAnalysis.test.tsx` testing rendering with mock player data."
+  ],
+  "acceptance_criteria": [
+    "FieldView shows per-player heatmap toggles in the legend area, and rendering uses grid-based colored cells per selected player",
+    "PlayerComparison component renders with two player selector dropdowns and a comparison table highlighting the better value",
+    "TimeZoneAnalysis component renders a configurable segment duration input and a recharts BarChart with per-period intensity",
+    "RSAAnalysis component computes repeated sprints from player sprint data and displays recovery times and speed degradation",
+    "Backend AnalyticsEngine has a compute_rsa() method returning RSAResult dataclass",
+    "Backend tests for RSA pass: `cd backend && uv run pytest tests/unit/test_rsa.py -v`",
+    "Frontend tests pass: `cd frontend && npm run test -- --run`",
+    "Frontend builds without TypeScript errors: `cd frontend && npm run build`"
+  ],
+  "verification": [
+    "cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

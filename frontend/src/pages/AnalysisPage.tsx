@@ -10,6 +10,9 @@ import { AIChat } from '../components/AIChat';
 import { TrackingModeSelector } from '../components/TrackingModeSelector';
 import { ProcessingStatus } from '../components/ProcessingStatus';
 import { PlaysTimeline } from '../components/PlaysTimeline';
+import { PlayerComparison } from '../components/PlayerComparison';
+import { TimeZoneAnalysis } from '../components/TimeZoneAnalysis';
+import { RSAAnalysis } from '../components/RSAAnalysis';
 import { useAnalysisStore, TabId } from '../stores/analysisStore';
 import { getVideo, startProcessing, getAnalysisStatus, getAnalysisResults, getAnalysisExport } from '../services/api';
 import { wsService } from '../services/websocket';
@@ -384,6 +387,9 @@ export const AnalysisPage: React.FC = () => {
         return (
           <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full">
             <AnalyticsDashboard players={results?.players || []} />
+            <PlayerComparison players={results?.players || []} />
+            <TimeZoneAnalysis players={results?.players || []} />
+            <RSAAnalysis players={results?.players || []} />
             {processingStatus === AnalysisStatus.COMPLETED && results && (
               <div className="flex justify-end">
                 <button

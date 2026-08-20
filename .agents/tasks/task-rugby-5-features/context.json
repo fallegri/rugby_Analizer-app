@@ -1,0 +1,33 @@
+{
+  "project_type": "Full-stack rugby video analysis app - Python FastAPI backend + React TypeScript frontend",
+  "language": "Python 3.11 (backend), TypeScript (frontend)",
+  "build_system": "uv (backend), npm + vite (frontend), Makefile at root",
+  "test_framework": "pytest with pytest-asyncio (backend tests/unit/), vitest with @testing-library/react (frontend src/__tests__/)",
+  "build_command": "cd frontend && npm run build",
+  "test_command": "cd backend && uv run pytest tests/ -v && cd ../frontend && npm run test -- --run",
+  "verification_instructions": "1. Run backend tests: cd backend && uv run pytest tests/ -v. 2. Run frontend tests: cd frontend && npm run test -- --run. 3. Build frontend: cd frontend && npm run build.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "cd backend && uv sync && cd ../frontend && npm install",
+  "environment_constraints": "No Docker daemon available for runtime testing. Use host-based validation. Python 3.11 required. Node.js required for frontend.",
+  "contribution_requirements": "Hexagonal architecture with SOLID principles. Backend uses ports/adapters pattern. Tests required.",
+  "key_patterns": "Frontend: React functional components with hooks, zustand store, recharts for charts, lucide-react icons, tailwindcss styling, vitest tests. Backend: FastAPI router pattern, Pydantic models, dataclass-based analytics engine, service layer pattern with app.state injection. Types defined in frontend/src/types/index.ts shared with backend models.",
+  "relevant_files": [
+    "frontend/src/components/FieldView.tsx",
+    "frontend/src/components/AnalyticsDashboard.tsx",
+    "frontend/src/components/PlaysTimeline.tsx",
+    "frontend/src/pages/AnalysisPage.tsx",
+    "frontend/src/types/index.ts",
+    "frontend/src/stores/analysisStore.ts",
+    "frontend/src/services/api.ts",
+    "frontend/src/__tests__/components.test.tsx",
+    "backend/src/cv/analytics.py",
+    "backend/src/api/routes/analysis.py",
+    "backend/src/services/analysis_service.py",
+    "backend/src/main.py",
+    "backend/tests/unit/test_analytics.py",
+    "backend/tests/conftest.py",
+    "backend/pyproject.toml",
+    "frontend/package.json"
+  ],
+  "directory_structure": "Root: Makefile, docker-compose files, README. backend/src/: main.py, api/routes/ (analysis, video, ai, health, plays, calibration), cv/ (analytics, detector, tracker), services/ (analysis_service, background_tasks, play_detection_service), core/ (enums, models), config/, adapters/. frontend/src/: App.tsx, main.tsx, pages/ (AnalysisPage), components/ (11 components), stores/ (analysisStore), services/ (api, websocket), types/, __tests__/."
+}

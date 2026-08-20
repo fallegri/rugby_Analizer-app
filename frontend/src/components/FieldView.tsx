@@ -93,12 +93,13 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export const FieldView: React.FC<FieldViewProps> = ({ players = [], showHeatMap = false }) => {
+export const FieldView: React.FC<FieldViewProps> = ({ players = [] }) => {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const [selectedHeatMapPlayers, setSelectedHeatMapPlayers] = useState<string[]>([]);
 
   // Animation state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -295,14 +296,70 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [], showHeatMap 
   );
 
   const renderHeatMap = () => {
-    if (!showHeatMap || players.length === 0) return null;
+    if (selectedHeatMapPlayers.length === 0) return null;
+
+    const GRID_COLS = 10;
+    const GRID_ROWS = 7;
+    const cellWidth = SVG_WIDTH / GRID_COLS;
+    const cellHeight = SVG_HEIGHT / GRID_ROWS;
+
     return (
-      <g opacity={0.4}>
-        {players.flatMap((player) =>
-          (player.route || []).filter((pt) => pt.timestamp <= currentTime).map((pt, i) => (
-            <circle key={`heat-${player.player_id}-${i}`} cx={pt.x * SCALE_X} cy={pt.y * SCALE_Y} r={8} fill="red" opacity={0.1} />
-          ))
-        )}
+      <g>
+        {players
+          .filter((player) => selectedHeatMapPlayers.includes(player.player_id))
+          .map((player, _playerIdx) => {
+            const color = PLAYER_COLORS[players.indexOf(player) % PLAYER_COLORS.length];
+
+            // Build grid density
+            const grid: number[][] = Array.from({ length: GRID_ROWS }, () =>
+              Array(GRID_COLS).fill(0)
+            );
+
+            const relevantPoints = (player.route || []).filter(
+              (pt) => pt.timestamp <= currentTime
+            );
+
+            for (const pt of relevantPoints) {
+              const col = Math.min(Math.floor((pt.x / FIELD_WIDTH) * GRID_COLS), GRID_COLS - 1);
+              const row = Math.min(Math.floor((pt.y / FIELD_HEIGHT) * GRID_ROWS), GRID_ROWS - 1);
+              if (col >= 0 && row >= 0) {
+                grid[row][col]++;
+              }
+            }
+
+            // Find max density for normalization
+            let maxDensity = 0;
+            for (let r = 0; r < GRID_ROWS; r++) {
+              for (let c = 0; c < GRID_COLS; c++) {
+                if (grid[r][c] > maxDensity) maxDensity = grid[r][c];
+              }
+            }
+
+            if (maxDensity === 0) return null;
+
+            return (
+              <g key={`heatmap-${player.player_id}`}>
+                {grid.map((row, rowIdx) =>
+                  row.map((count, colIdx) => {
+                    if (count === 0) return null;
+                    const opacity = (count / maxDensity) * 0.6;
+                    return (
+                      <rect
+                        key={`heat-${player.player_id}-${rowIdx}-${colIdx}`}
+                        x={colIdx * cellWidth}
+                        y={rowIdx * cellHeight}
+                        width={cellWidth}
+                        height={cellHeight}
+                        fill={color}
+                        opacity={opacity}
+                        rx={2}
+                      />
+                    );
+                  })
+                )}
+              </g>
+            );
+          })}
       </g>
     );
   };
@@ -405,15 +462,35 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [], showHeatMap 
         </div>
       )}
 
-      {/* Player legend */}
+      {/* Player legend with heatmap toggles */}
       {players.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
-          {players.map((player, idx) => (
-            <div key={player.player_id} className="flex items-center gap-1 text-xs">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAYER_COLORS[idx % PLAYER_COLORS.length] }} />
-              <span className="text-gray-300">{player.player_id}</span>
-            </div>
-          ))}
+          {players.map((player, idx) => {
+            const isHeatMapActive = selectedHeatMapPlayers.includes(player.player_id);
+            return (
+              <button
+                key={player.player_id}
+                className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${
+                  isHeatMapActive
+                    ? 'bg-gray-600 ring-1 ring-white/30'
+                    : 'bg-gray-700/50 hover:bg-gray-700'
+                }`}
+                onClick={() => {
+                  setSelectedHeatMapPlayers((prev) =>
+                    prev.includes(player.player_id)
+                      ? prev.filter((id) => id !== player.player_id)
+                      : [...prev, player.player_id]
+                  );
+                }}
+                title={`Toggle heatmap for ${player.player_id}`}
+                data-testid={`heatmap-toggle-${player.player_id}`}
+              >
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAYER_COLORS[idx % PLAYER_COLORS.length] }} />
+                <span className="text-gray-300">{player.player_id}</span>
+                {isHeatMapActive && <span className="text-[10px] text-green-400 ml-1">&#9632;</span>}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
