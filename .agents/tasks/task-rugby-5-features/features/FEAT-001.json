@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Environment setup - install dependencies and verify existing tests pass for both backend and frontend before making any changes.",
+  "status": "completed",
+  "steps": [
+    "Run `cd /projects/sandbox/rugby_Analizer-app/backend && uv sync` to install Python dependencies",
+    "Run `cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v` to verify backend tests pass",
+    "Run `cd /projects/sandbox/rugby_Analizer-app/frontend && npm install` to install frontend dependencies",
+    "Run `cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run` to verify frontend tests pass",
+    "Run `cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build` to verify TypeScript compilation and build pass"
+  ],
+  "acceptance_criteria": [
+    "Backend pytest tests all pass with no failures",
+    "Frontend vitest tests all pass with no failures",
+    "Frontend `npm run build` succeeds without TypeScript errors"
+  ],
+  "verification": [
+    "cd /projects/sandbox/rugby_Analizer-app/backend && uv run pytest tests/ -v",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run test -- --run",
+    "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "Backend: uv sync without --extra dev removes pytest/ruff; use `uv sync --extra dev` to include test tooling. All 245 backend tests pass (Python 3.12.13, pytest 9.1.1). 1 deprecation warning about httpx/starlette testclient. Frontend: All 35 vitest tests pass (vitest 1.6.1). Build succeeds with tsc + vite. Bundle is 1019KB (over 500KB chunk warning). 12 npm audit vulnerabilities (4 moderate, 7 high, 1 critical) - pre-existing, not related to our changes. React Router v7 future flag warnings present in test output."
+}
