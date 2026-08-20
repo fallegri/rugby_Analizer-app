@@ -4,16 +4,19 @@ Provides endpoints for starting analysis, checking status,
 retrieving results, and querying AI about analysis data.
 """
 
+import io
 import logging
 from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.core.enums import AnalysisStatus, TrackingMode
 from src.core.models import AnalysisRequest, FieldCalibration, PlayerSelection
 from src.services.analysis_service import AnalysisService
+from src.services.pdf_report_service import PDFReportService
 
 logger = logging.getLogger(__name__)
 
@@ -363,6 +366,47 @@ async def export_analysis(session_id: str, req: Request) -> dict[str, Any]:
     }
 
     return export_data
+
+
+@router.get("/{session_id}/report/pdf")
+async def get_pdf_report(session_id: str, req: Request) -> StreamingResponse:
+    """Generate and download a PDF report for the analysis session.
+
+    Args:
+        session_id: The analysis session UUID.
+        req: FastAPI request object for accessing app state.
+
+    Returns:
+        StreamingResponse with PDF content.
+
+    Raises:
+        HTTPException: If session not found or not complete.
+    """
+    service = req.app.state.analysis_service
+
+    try:
+        results = service.get_results(session_id)
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session '{session_id}' not found",
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    pdf_service = PDFReportService()
+    pdf_bytes = pdf_service.generate_report(results)
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=rugby_report_{session_id}.pdf"
+        },
+    )
 
 
 @router.post("/{session_id}/ai-query", response_model=AIQueryResponse)

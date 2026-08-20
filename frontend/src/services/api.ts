@@ -131,4 +131,20 @@ export async function getPlays(sessionId: string): Promise<DetectedPlay[]> {
   return response.data.plays || response.data;
 }
 
+// PDF report download
+export async function downloadPDFReport(sessionId: string): Promise<void> {
+  const response = await apiClient.get(`/analysis/${sessionId}/report/pdf`, {
+    responseType: 'blob',
+  });
+  const blob = new Blob([response.data], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rugby_report_${sessionId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default apiClient;

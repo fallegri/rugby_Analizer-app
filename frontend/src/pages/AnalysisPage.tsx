@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Play, Loader2, Download, Video, Activity, BarChart3, Crosshair, MessageSquare } from 'lucide-react';
+import { Play, Loader2, Download, Video, Activity, BarChart3, Crosshair, MessageSquare, FileText } from 'lucide-react';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { PlayerSelector } from '../components/PlayerSelector';
 import { FieldCalibration } from '../components/FieldCalibration';
@@ -14,7 +14,7 @@ import { PlayerComparison } from '../components/PlayerComparison';
 import { TimeZoneAnalysis } from '../components/TimeZoneAnalysis';
 import { RSAAnalysis } from '../components/RSAAnalysis';
 import { useAnalysisStore, TabId } from '../stores/analysisStore';
-import { getVideo, startProcessing, getAnalysisStatus, getAnalysisResults, getAnalysisExport } from '../services/api';
+import { getVideo, startProcessing, getAnalysisStatus, getAnalysisResults, getAnalysisExport, downloadPDFReport } from '../services/api';
 import { wsService } from '../services/websocket';
 import { AnalysisStatus, TrackingMode, TrackingResult, PlayerMetrics, PlayArea } from '../types';
 
@@ -391,7 +391,23 @@ export const AnalysisPage: React.FC = () => {
             <TimeZoneAnalysis players={results?.players || []} />
             <RSAAnalysis players={results?.players || []} />
             {processingStatus === AnalysisStatus.COMPLETED && results && (
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={async () => {
+                    const sid = storeSessionId || sessionIdRef.current;
+                    if (sid) {
+                      try {
+                        await downloadPDFReport(sid);
+                      } catch {
+                        setError('Failed to generate PDF report');
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700"
+                >
+                  <FileText className="w-4 h-4" />
+                  Generar Reporte PDF
+                </button>
                 <button
                   onClick={handleExport}
                   className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
