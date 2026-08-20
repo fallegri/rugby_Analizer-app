@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Implement PDF report generation. Backend endpoint that generates a professional PDF with video metadata, player metrics, field map with routes, detected plays, and speed charts. Frontend button to trigger and download the PDF.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "BACKEND DEPENDENCY: Add `reportlab>=4.0.0` to backend/pyproject.toml dependencies. Run `cd backend && uv sync` to install it.",
     "BACKEND PDF SERVICE: Create `backend/src/services/pdf_report_service.py`. Implement a PDFReportService class with a `generate_report()` method. Use reportlab to generate a professional PDF containing: (1) Title page with 'Rugby Analyzer Report' and generation timestamp. (2) Video metadata section (video_id, duration, mode, fps). (3) Per-player metrics table (player_id, distance, max_speed, avg_speed, sprint_count). (4) Field diagram with player routes drawn as colored lines on a green rectangle representing the rugby field (using reportlab drawing primitives). (5) Detected plays section listing each play type, time, and description. (6) Speed chart - a simple line chart drawn with reportlab showing speed over time for each player. The method should accept session results dict and return bytes (the PDF content).",
@@ -26,5 +26,5 @@
     "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 260 backend tests pass including 5 new PDF report tests. All 47 frontend tests pass. Frontend builds without errors. reportlab 5.0.1 installed successfully. Used io.BytesIO for StreamingResponse in the endpoint."
 }
