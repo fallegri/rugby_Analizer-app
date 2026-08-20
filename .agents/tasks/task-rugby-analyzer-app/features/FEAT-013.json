@@ -2,7 +2,7 @@
   "id": "FEAT-013",
   "type": "feat",
   "description": "Hugging Face Spaces deployment (single container serving frontend + backend via supervisord) and auto-cleanup: delete video file after processing, persist metadata and analysis results to results/ directory as JSON files.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create root Dockerfile for HF Spaces: multi-stage build (frontend build, backend deps, final with nginx + supervisord)",
     "Create supervisord.conf to run nginx (port 7860) and uvicorn (port 8000) in parallel",
@@ -29,5 +29,5 @@
     "cd /projects/sandbox/rugby_Analizer-app/frontend && npm run build"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All 245 backend tests pass. All 35 frontend tests pass. Frontend builds successfully (chunk size warning is pre-existing). The results directory resolves relative to the background_tasks.py file location (backend/src/services -> backend/results). The Dockerfile uses multi-stage build with node:20-alpine for frontend, python:3.11-slim for backend, and final python:3.11-slim with nginx+supervisor. Video auto-cleanup only happens on successful processing completion (not on failure or cancellation)."
 }
