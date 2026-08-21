@@ -1,5 +1,6 @@
 import axios, { AxiosProgressEvent } from 'axios';
 import { AIProvider, CalibrationPoint, TrackingMode, Video, TrackingResult, FieldCalibration, PlayArea, DetectedPlay } from '../types';
+import { useSettingsStore } from '../stores/settingsStore';
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -42,7 +43,11 @@ export async function startProcessing(
     player_selections?: { x: number; y: number; width: number; height: number }[];
   }
 ): Promise<{ session_id: string }> {
-  const response = await apiClient.post(`/video/${videoId}/process`, config);
+  const yoloModel = useSettingsStore.getState().yoloModel;
+  const response = await apiClient.post(`/video/${videoId}/process`, {
+    ...config,
+    yolo_model: yoloModel,
+  });
   return response.data;
 }
 

@@ -29,6 +29,9 @@ _videos: dict[str, dict] = {}
 # Allowed video file extensions
 ALLOWED_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv"}
 
+# Valid YOLO model choices
+VALID_YOLO_MODELS = {"yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt"}
+
 
 class VideoMetadata(BaseModel):
     """Response model for video metadata."""
@@ -55,6 +58,7 @@ class ProcessRequest(BaseModel):
     calibration: Optional[dict] = None
     play_area: Optional[dict] = None
     player_selections: Optional[list[dict]] = None
+    yolo_model: Optional[str] = Field(default="yolov8s.pt", description="YOLO model to use for detection")
 
 
 class ProcessingResult(BaseModel):
@@ -267,11 +271,14 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
             f"Mode: {request.mode.value} | Video: {video_path}"
         )
 
-        # Create detector with YOLOv8n (lightweight, compatible with CPU and GPU)
+        # Create detector with selected YOLO model (default: yolov8s, balanced speed/accuracy)
         import os
         yolo_device = os.environ.get("YOLO_DEVICE", "cpu")
+        selected_model = request.yolo_model or "yolov8s.pt"
+        if selected_model not in VALID_YOLO_MODELS:
+            selected_model = "yolov8s.pt"
         detector = YOLODetector(
-            model_path="yolov8n.pt",
+            model_path=selected_model,
             confidence_threshold=0.25,
             device=yolo_device,
         )

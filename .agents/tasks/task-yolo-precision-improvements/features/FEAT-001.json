@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Change default YOLO model from yolov8n to yolov8s and add UI model selection. Users can choose between yolov8n (fast), yolov8s (balanced), yolov8m (precise), yolov8l (max precision) from the Settings modal. The selected model is passed to the backend via the ProcessRequest.",
+  "status": "in_progress",
+  "steps": [
+    "1. In backend/src/api/routes/video.py: Add 'yolo_model' optional field to ProcessRequest (default: 'yolov8s.pt'). In process_video(), read request.yolo_model and use it when instantiating YOLODetector instead of hardcoded 'yolov8n.pt'. Validate the model name is one of: yolov8n.pt, yolov8s.pt, yolov8m.pt, yolov8l.pt.",
+    "2. In backend/src/api/routes/analysis.py: Similarly update the detector instantiation (around line 172) to accept model from the request if available, defaulting to 'yolov8s.pt'.",
+    "3. In backend/src/cv/detector.py: Change the default model_path parameter from 'yolov8n.pt' to 'yolov8s.pt' in YOLODetector.__init__. Update docstrings accordingly.",
+    "4. In frontend/src/types/index.ts: Add a YoloModel enum with values 'yolov8n.pt', 'yolov8s.pt', 'yolov8m.pt', 'yolov8l.pt'.",
+    "5. In frontend/src/stores/settingsStore.ts: Add 'yoloModel' state field (default: 'yolov8s.pt') and 'setYoloModel' action to the SettingsState/SettingsActions interfaces.",
+    "6. In frontend/src/components/Settings.tsx: Add a 'Detection Model' section (between Theme and AI Provider) showing the 4 model options with labels: yolov8n (Rapido), yolov8s (Balanceado - default), yolov8m (Preciso), yolov8l (Maxima precision). Use radio-button-style buttons similar to AI provider selection.",
+    "7. In frontend/src/services/api.ts: In startProcessing(), include the yoloModel from the settings store in the request body as 'yolo_model'.",
+    "8. Update backend/tests/unit/test_detector.py: Update test_instantiation to use 'yolov8s.pt' as default. Add a test that verifies the model_path can be set to each valid option."
+  ],
+  "acceptance_criteria": [
+    "Backend ProcessRequest accepts an optional yolo_model field",
+    "Default model in YOLODetector is yolov8s.pt",
+    "Frontend Settings modal shows YOLO model selection with 4 options",
+    "Selected model is persisted in Zustand store",
+    "Selected model is sent to backend in process request",
+    "Backend tests pass with updated default model",
+    "Frontend builds without TypeScript errors"
+  ],
+  "verification": [
+    "cd backend && uv run pytest tests/unit/test_detector.py -v",
+    "cd backend && uv run pytest tests/ -v",
+    "cd frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

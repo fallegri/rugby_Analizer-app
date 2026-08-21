@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Save, Eye, EyeOff, Sun, Moon } from 'lucide-react';
-import { AIProvider } from '../types';
+import { AIProvider, YoloModel } from '../types';
 import { useSettingsStore } from '../stores/settingsStore';
 import { switchProvider, updateAIConfig } from '../services/api';
 
@@ -17,8 +17,15 @@ const PROVIDERS = [
   { id: AIProvider.OLLAMA, label: 'Ollama (Local)', description: 'Local LLM inference' },
 ];
 
+const YOLO_MODELS = [
+  { id: YoloModel.YOLOV8N, label: 'YOLOv8n', description: 'Rapido' },
+  { id: YoloModel.YOLOV8S, label: 'YOLOv8s', description: 'Balanceado' },
+  { id: YoloModel.YOLOV8M, label: 'YOLOv8m', description: 'Preciso' },
+  { id: YoloModel.YOLOV8L, label: 'YOLOv8l', description: 'Maxima precision' },
+];
+
 export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
-  const { activeProvider, apiKeys, theme, setProvider, setApiKey, toggleTheme } = useSettingsStore();
+  const { activeProvider, apiKeys, theme, yoloModel, setProvider, setApiKey, toggleTheme, setYoloModel } = useSettingsStore();
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
 
@@ -72,6 +79,27 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 <><Sun className="w-4 h-4 text-yellow-400" /><span className="text-gray-300 text-sm">Light Mode</span></>
               )}
             </button>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-300 mb-2 block">Detection Model</label>
+            <div className="space-y-2">
+              {YOLO_MODELS.map(({ id, label, description }) => (
+                <button
+                  key={id}
+                  onClick={() => setYoloModel(id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                    yoloModel === id ? 'border-rugby-gold bg-rugby-gold/10' : 'border-gray-600 hover:border-gray-400'
+                  }`}
+                >
+                  <div className={`w-3 h-3 rounded-full border-2 ${yoloModel === id ? 'border-rugby-gold bg-rugby-gold' : 'border-gray-500'}`} />
+                  <div>
+                    <p className="text-sm text-white font-medium">{label}</p>
+                    <p className="text-xs text-gray-400">{description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>

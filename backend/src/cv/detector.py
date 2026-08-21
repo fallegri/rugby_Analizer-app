@@ -1,7 +1,8 @@
 """YOLO-based object detection for rugby video analysis.
 
-Uses YOLOv8 via the ultralytics library. Configured for GTX 1060
-compatibility (YOLOv8n model for low VRAM usage).
+Uses YOLOv8 via the ultralytics library. Default model is YOLOv8s
+for balanced speed/accuracy. Users can select from yolov8n, yolov8s,
+yolov8m, or yolov8l depending on hardware and precision needs.
 """
 
 from dataclasses import dataclass, field
@@ -31,10 +32,10 @@ class YOLODetector:
     """YOLO-based object detector for rugby analysis.
 
     Detects persons (class 0) and sports balls (class 32) in video frames.
-    Uses YOLOv8n by default for GTX 1060 compatibility (6GB VRAM).
+    Uses YOLOv8s by default for balanced speed and accuracy.
 
     Args:
-        model_path: Path to YOLO model weights. Defaults to 'yolov8n.pt'.
+        model_path: Path to YOLO model weights. Defaults to 'yolov8s.pt'.
         confidence_threshold: Minimum confidence for detection. Defaults to 0.25.
         device: Device for inference ('cuda', 'cpu', or 'auto'). Defaults to 'auto'.
         target_classes: List of COCO class IDs to detect. Defaults to [0, 32].
@@ -46,9 +47,12 @@ class YOLODetector:
         32: "sports ball",
     }
 
+    # Valid model choices for runtime validation
+    VALID_MODELS = {"yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt"}
+
     def __init__(
         self,
-        model_path: str = "yolov8n.pt",
+        model_path: str = "yolov8s.pt",
         confidence_threshold: float = 0.25,
         device: str = "auto",
         target_classes: Optional[list[int]] = None,

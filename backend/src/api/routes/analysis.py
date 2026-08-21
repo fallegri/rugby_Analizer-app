@@ -168,9 +168,9 @@ async def start_analysis(request: StartAnalysisRequest, req: Request) -> dict[st
                 f"Mode: {request.mode.value} | Video: {video_path}"
             )
 
-            # Create detector with YOLOv8n (lightweight, GTX 1060 compatible)
+            # Create detector with YOLOv8s (balanced speed/accuracy)
             detector = YOLODetector(
-                model_path="yolov8n.pt",
+                model_path="yolov8s.pt",
                 confidence_threshold=0.25,
                 device="auto",
             )

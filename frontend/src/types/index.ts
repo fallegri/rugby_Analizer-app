@@ -14,6 +14,13 @@ export enum AIProvider {
   OLLAMA = 'ollama',
 }
 
+export enum YoloModel {
+  YOLOV8N = 'yolov8n.pt',
+  YOLOV8S = 'yolov8s.pt',
+  YOLOV8M = 'yolov8m.pt',
+  YOLOV8L = 'yolov8l.pt',
+}
+
 export enum VideoStatus {
   UPLOADED = 'uploaded',
   CALIBRATING = 'calibrating',

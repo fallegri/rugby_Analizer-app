@@ -21,7 +21,7 @@ def mock_yolo_model():
 @pytest.fixture
 def detector(mock_yolo_model):
     """Create a YOLODetector with a mocked model."""
-    det = YOLODetector(model_path="yolov8n.pt", confidence_threshold=0.25)
+    det = YOLODetector(model_path="yolov8s.pt", confidence_threshold=0.25)
     det._model = mock_yolo_model
     return det
 
@@ -32,11 +32,11 @@ class TestYOLODetector:
     def test_instantiation(self):
         """Test detector can be instantiated without loading model."""
         det = YOLODetector(
-            model_path="yolov8n.pt",
+            model_path="yolov8s.pt",
             confidence_threshold=0.5,
             device="cpu",
         )
-        assert det.model_path == "yolov8n.pt"
+        assert det.model_path == "yolov8s.pt"
         assert det.confidence_threshold == 0.5
         assert det.device == "cpu"
         assert det.target_classes == [0, 32]
@@ -178,3 +178,16 @@ class TestYOLODetector:
         """Test custom target class configuration."""
         det = YOLODetector(target_classes=[0])
         assert det.target_classes == [0]
+
+    def test_default_model_is_yolov8s(self):
+        """Test that the default model is yolov8s.pt."""
+        det = YOLODetector()
+        assert det.model_path == "yolov8s.pt"
+
+    def test_valid_model_paths(self):
+        """Test that each valid model path can be set."""
+        valid_models = ["yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt"]
+        for model in valid_models:
+            det = YOLODetector(model_path=model)
+            assert det.model_path == model
+            assert det._model is None

@@ -1,17 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AIProvider } from '../types';
+import { AIProvider, YoloModel } from '../types';
 
 interface SettingsState {
   activeProvider: AIProvider;
   apiKeys: Record<string, string>;
   theme: 'light' | 'dark';
+  yoloModel: YoloModel;
 }
 
 interface SettingsActions {
   setProvider: (provider: AIProvider) => void;
   setApiKey: (provider: string, key: string) => void;
   toggleTheme: () => void;
+  setYoloModel: (model: YoloModel) => void;
 }
 
 export const useSettingsStore = create<SettingsState & SettingsActions>()(
@@ -20,6 +22,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       activeProvider: AIProvider.NVIDIA,
       apiKeys: {},
       theme: 'dark',
+      yoloModel: YoloModel.YOLOV8S,
 
       setProvider: (provider) => set({ activeProvider: provider }),
 
@@ -32,6 +35,8 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         set((state) => ({
           theme: state.theme === 'dark' ? 'light' : 'dark',
         })),
+
+      setYoloModel: (model) => set({ yoloModel: model }),
     }),
     {
       name: 'rugby-analyzer-settings',
