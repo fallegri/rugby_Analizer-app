@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Team color classifier: After detecting a player, analyze dominant color in bounding box to classify team A vs team B. User can configure team colors in UI or system auto-detects via K-means clustering. Add team_id to PlayerMetrics so FieldView colors players by team.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Create backend/src/cv/team_classifier.py: Implement TeamClassifier class with: (a) __init__(team_a_color: Optional[tuple[int,int,int]], team_b_color: Optional[tuple[int,int,int]], auto_detect: bool = True), (b) classify_player(frame: np.ndarray, bbox: tuple) -> Optional[str] that crops the bounding box, extracts the dominant color from the upper body region (top 40% of bbox), converts to HSV, and compares to team colors. Returns 'team_a', 'team_b', or None. (c) auto_detect_teams(frame: np.ndarray, bboxes: list[tuple]) -> tuple[tuple, tuple] that uses K-means (k=2) on dominant colors from all player boxes to determine the two team colors. (d) _get_dominant_color(image_crop: np.ndarray) -> tuple[int,int,int] using K-means with k=3, picking the most frequent non-green (field) cluster.",
     "2. Update backend/src/cv/video_processor.py: Add optional team_classifier parameter. In _process_single_frame, after tracking, if team_classifier is set, classify each person track and store team_id. Add team_classifications dict[int, str] to FrameResult. Run auto-detection on the first few frames if no manual colors provided.",
@@ -30,5 +30,5 @@
     "cd frontend && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 288 backend tests pass (including 13 new team classifier tests). Frontend builds clean with no TypeScript errors. scikit-learn KMeans works well for team color detection. The team_classifier integrates seamlessly into the VideoProcessor pipeline following the same optional parameter pattern as pose_detector."
 }
