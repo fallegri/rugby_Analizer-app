@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-005",
+  "type": "fix",
+  "description": "Fix 5 issues identified in semantic review: (1) per-frame K-means performance in TeamClassifier, (2) keypoints lost in serialization, (3) model path validation gap in analysis.py, (4) team color auto-detect minimum sample count too low, (5) pose toggle missing performance warning.",
+  "status": "completed",
+  "steps": [
+    "1. In backend/src/cv/team_classifier.py: Replace per-frame K-means with a fast mean-color approach using Euclidean distance after team colors are known. Add per-track color caching with configurable reclassify_interval (default 30 frames). K-means is now only used during auto-detection.",
+    "2. In backend/src/cv/video_processor.py: Store per-track keypoints indexed by frame number in _track_keypoints dict. Include in AnalysisResult.track_keypoints.",
+    "3. In backend/src/services/background_tasks.py: Serialize keypoints into route point entries by mapping timestamp back to frame number. Frontend FieldView skeleton rendering now has data to work with.",
+    "4. In backend/src/api/routes/analysis.py: Import and apply VALID_YOLO_MODELS allowlist from video.py when instantiating the detector. Prevents unvalidated model paths reaching YOLO().",
+    "5. In backend/src/cv/team_classifier.py: Increase minimum sample count for auto-detection from 2 to 10 (MIN_SAMPLES_FOR_DETECTION class constant). Prevents unreliable clustering when early frames have few players.",
+    "6. In frontend/src/components/Settings.tsx: Add amber performance warning text below pose detection toggle indicating ~2x processing time."
+  ],
+  "acceptance_criteria": [
+    "TeamClassifier uses mean-color with caching on the hot path (no per-frame K-means)",
+    "Keypoints are serialized in route points and available to frontend",
+    "analysis.py validates model path against VALID_YOLO_MODELS allowlist",
+    "Auto-detection requires at least 10 player samples before committing",
+    "Pose toggle shows performance warning in Settings UI",
+    "All 288 backend tests pass",
+    "Frontend builds without TypeScript errors"
+  ],
+  "verification": [
+    "cd backend && uv run pytest tests/ -v",
+    "cd frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "All 288 backend tests pass. Frontend builds clean. The mean-color approach is significantly faster than K-means for per-frame classification. Track color caching reduces computation by ~30x for typical videos. The keypoints serialization maps route_point timestamps back to frame numbers via fps multiplication."
+}

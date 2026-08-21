@@ -133,6 +133,7 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
               <div>
                 <p className="text-sm text-white font-medium">{enablePose ? 'Enabled' : 'Disabled'}</p>
                 <p className="text-xs text-gray-400">Enables posture detection for better tackle/play analysis</p>
+                <p className="text-xs text-amber-400 mt-0.5">&#9888; Runs a second model per frame (~2x processing time)</p>
               </div>
             </button>
           </div>

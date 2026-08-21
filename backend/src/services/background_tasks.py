@@ -245,6 +245,9 @@ class BackgroundTaskManager:
             # Convert result to serializable dict matching frontend PlayerMetrics[] format
             players_list = []
             for track_id, analytics in result.analytics.items():
+                # Build keypoints lookup for this track (frame_num -> keypoints)
+                track_kps = result.track_keypoints.get(track_id, {}) if hasattr(result, "track_keypoints") else {}
+
                 player_metrics = {
                     "player_id": str(track_id),
                     "total_distance_km": getattr(analytics, "total_distance_km", 0.0),
@@ -261,16 +264,29 @@ class BackgroundTaskManager:
                         }
                         for seg in getattr(analytics, "sprint_segments", [])
                     ],
-                    "route": [
-                        {
-                            "x": pt[0],
-                            "y": pt[1],
-                            "timestamp": pt[2],
-                            "speed": 0.0,
-                        }
-                        for pt in getattr(analytics, "route_points", [])
-                    ],
+                    "route": [],
                 }
+
+                # Build route points with keypoints. Route points use timestamp_s
+                # which maps back to frame_num via fps.
+                route_points = getattr(analytics, "route_points", [])
+                for pt in route_points:
+                    route_entry: dict = {
+                        "x": pt[0],
+                        "y": pt[1],
+                        "timestamp": pt[2],
+                        "speed": 0.0,
+                    }
+                    # Map timestamp back to frame number to find keypoints
+                    if track_kps and result.fps > 0:
+                        frame_num_approx = int(round(pt[2] * result.fps))
+                        kps = track_kps.get(frame_num_approx)
+                        if kps:
+                            route_entry["keypoints"] = [
+                                {"x": kp[0], "y": kp[1], "confidence": kp[2]}
+                                for kp in kps
+                            ]
+                    player_metrics["route"].append(route_entry)
                 # Compute speed for each route point (distance / time between consecutive points)
                 route = player_metrics["route"]
                 for i in range(1, len(route)):

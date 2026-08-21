@@ -58,6 +58,7 @@ class AnalysisResult:
         analytics: Per-track analytics results (track_id -> AnalyticsResult).
         frame_results: List of per-frame results (may be empty if not stored).
         team_classifications: Final team assignment per track (track_id -> team).
+        track_keypoints: Per-track keypoints indexed by frame number.
     """
 
     total_frames: int = 0
@@ -66,6 +67,7 @@ class AnalysisResult:
     analytics: dict[int, AnalyticsResult] = field(default_factory=dict)
     frame_results: list[FrameResult] = field(default_factory=list)
     team_classifications: dict[int, str] = field(default_factory=dict)
+    track_keypoints: dict[int, dict[int, list[tuple[float, float, float]]]] = field(default_factory=dict)
 
 
 class VideoProcessor:
@@ -115,6 +117,8 @@ class VideoProcessor:
         self.pose_detector = pose_detector
         self.team_classifier = team_classifier
         self._track_histories: dict[int, list[tuple[float, float, int]]] = {}
+        # Per-track keypoints indexed by frame number: track_id -> {frame_num -> keypoints}
+        self._track_keypoints: dict[int, dict[int, list[tuple[float, float, float]]]] = {}
         # Team classification results per track (track_id -> team assignment)
         self._track_teams: dict[int, str] = {}
         # Target acquisition: maps selection index -> acquired track ID
@@ -167,6 +171,7 @@ class VideoProcessor:
 
         self.tracker.reset()
         self._track_histories = {}
+        self._track_keypoints = {}
         self._track_teams = {}
         self._acquired_targets = {}
 
@@ -209,6 +214,8 @@ class VideoProcessor:
 
         # Store team classifications in result
         result.team_classifications = dict(self._track_teams)
+        # Store track keypoints in result
+        result.track_keypoints = dict(self._track_keypoints)
 
         return result
 
@@ -246,6 +253,7 @@ class VideoProcessor:
 
         self.tracker.reset()
         self._track_histories = {}
+        self._track_keypoints = {}
         self._track_teams = {}
         self._acquired_targets = {}
 
@@ -301,6 +309,7 @@ class VideoProcessor:
 
         self.tracker.reset()
         self._track_histories = {}
+        self._track_keypoints = {}
         self._track_teams = {}
         self._acquired_targets = {}
 
@@ -364,7 +373,7 @@ class VideoProcessor:
 
             # Classify each person track
             for track in person_tracks:
-                team = self.team_classifier.classify_player(frame, track.bbox)
+                team = self.team_classifier.classify_player(frame, track.bbox, track_id=track.id, frame_num=frame_num)
                 if team is not None:
                     team_classifications[track.id] = team
                     self._track_teams[track.id] = team
@@ -399,6 +408,12 @@ class VideoProcessor:
             if track.id not in self._track_histories:
                 self._track_histories[track.id] = []
             self._track_histories[track.id].append((fx, fy, frame_num))
+
+            # Store keypoints for this track at this frame (if available)
+            if track.keypoints:
+                if track.id not in self._track_keypoints:
+                    self._track_keypoints[track.id] = {}
+                self._track_keypoints[track.id][frame_num] = track.keypoints
 
         return FrameResult(
             frame_num=frame_num,

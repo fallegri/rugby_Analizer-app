@@ -3,6 +3,10 @@
 Analyzes the dominant color within player bounding boxes to classify
 players into team_a or team_b. Supports manual team color specification
 or automatic detection via K-means clustering.
+
+Once team colors are determined, classification uses a fast Euclidean
+distance metric on the mean upper-body color (no per-frame K-means).
+K-means is only used during auto-detection and dominant color caching.
 """
 
 from typing import Optional
@@ -19,17 +23,28 @@ class TeamClassifier:
     dominant colors, avoiding shorts and field interference. Can auto-detect
     team colors from the first few frames using K-means clustering.
 
+    After team colors are determined, classification uses a fast mean-color
+    approach with Euclidean distance instead of per-frame K-means, caching
+    the dominant color per track and re-classifying every N frames.
+
     Args:
         team_a_color: RGB tuple for team A jersey color (optional).
         team_b_color: RGB tuple for team B jersey color (optional).
         auto_detect: Whether to auto-detect team colors if not provided.
+        reclassify_interval: Number of frames between re-classification per track.
     """
+
+    # Minimum number of distinct player samples required before committing
+    # to auto-detected team colors. Prevents unreliable clustering when
+    # early frames contain very few players.
+    MIN_SAMPLES_FOR_DETECTION = 10
 
     def __init__(
         self,
         team_a_color: Optional[tuple[int, int, int]] = None,
         team_b_color: Optional[tuple[int, int, int]] = None,
         auto_detect: bool = True,
+        reclassify_interval: int = 30,
     ):
         self.team_a_color = team_a_color
         self.team_b_color = team_b_color
@@ -38,19 +53,24 @@ class TeamClassifier:
         self._detection_samples: list[tuple[int, int, int]] = []
         self._detection_frames_needed = 5
         self._detection_frame_count = 0
+        # Cache: track_id -> (dominant_color, last_classified_frame)
+        self._track_color_cache: dict[int, tuple[tuple[int, int, int], int]] = {}
+        self._reclassify_interval = reclassify_interval
 
     def classify_player(
-        self, frame: np.ndarray, bbox: tuple
+        self, frame: np.ndarray, bbox: tuple, track_id: Optional[int] = None, frame_num: int = 0
     ) -> Optional[str]:
         """Classify a player's team based on their jersey color.
 
-        Crops the bounding box from the frame, extracts the dominant color
-        from the upper body region (top 40%), converts to HSV for comparison,
-        and returns the team assignment.
+        Uses a fast mean-color approach once team colors are known. The dominant
+        color per track is cached and only recomputed every reclassify_interval
+        frames to avoid expensive per-frame K-means.
 
         Args:
             frame: Full video frame as numpy array (BGR).
             bbox: Bounding box as (x1, y1, x2, y2).
+            track_id: Optional track ID for caching dominant colors.
+            frame_num: Current frame number for cache invalidation.
 
         Returns:
             'team_a', 'team_b', or None if classification is not possible.
@@ -78,7 +98,19 @@ class TeamClassifier:
         if crop.size == 0 or crop.shape[0] < 2 or crop.shape[1] < 2:
             return None
 
-        dominant = self._get_dominant_color(crop)
+        # Use cached color if available and fresh
+        dominant = None
+        if track_id is not None and track_id in self._track_color_cache:
+            cached_color, cached_frame = self._track_color_cache[track_id]
+            if frame_num - cached_frame < self._reclassify_interval:
+                dominant = cached_color
+
+        if dominant is None:
+            # Use fast mean-color approach (no K-means on hot path)
+            dominant = self._get_mean_color(crop)
+            if dominant is not None and track_id is not None:
+                self._track_color_cache[track_id] = (dominant, frame_num)
+
         if dominant is None:
             return None
 
@@ -91,6 +123,43 @@ class TeamClassifier:
             return None
 
         return "team_a" if dist_a < dist_b else "team_b"
+
+    def _get_mean_color(
+        self, image_crop: np.ndarray
+    ) -> Optional[tuple[int, int, int]]:
+        """Extract the mean non-green color from an image crop (fast path).
+
+        Computes the mean RGB color of the crop after filtering out green
+        (field) pixels. Much faster than K-means for per-frame classification.
+
+        Args:
+            image_crop: BGR image crop (numpy array).
+
+        Returns:
+            Mean color as RGB tuple, or None if the crop is too small.
+        """
+        if image_crop.size == 0 or image_crop.shape[0] < 1 or image_crop.shape[1] < 1:
+            return None
+
+        # Convert to RGB
+        rgb = cv2.cvtColor(image_crop, cv2.COLOR_BGR2RGB)
+        pixels = rgb.reshape(-1, 3).astype(np.float32)
+
+        if len(pixels) < 3:
+            return None
+
+        # Filter out green (field) pixels
+        r, g, b = pixels[:, 0], pixels[:, 1], pixels[:, 2]
+        non_green_mask = ~((g > 80) & (g > r * 1.3) & (g > b * 1.3))
+
+        non_green_pixels = pixels[non_green_mask]
+        if len(non_green_pixels) < 3:
+            # All pixels are green, return overall mean
+            mean = pixels.mean(axis=0)
+            return (int(mean[0]), int(mean[1]), int(mean[2]))
+
+        mean = non_green_pixels.mean(axis=0)
+        return (int(mean[0]), int(mean[1]), int(mean[2]))
 
     def auto_detect_teams(
         self, frame: np.ndarray, bboxes: list[tuple]
@@ -190,7 +259,7 @@ class TeamClassifier:
 
         self._detection_frame_count += 1
 
-        if self._detection_frame_count >= self._detection_frames_needed and len(self._detection_samples) >= 2:
+        if self._detection_frame_count >= self._detection_frames_needed and len(self._detection_samples) >= self.MIN_SAMPLES_FOR_DETECTION:
             # Cluster collected samples
             color_array = np.array(self._detection_samples, dtype=np.float32)
             kmeans = KMeans(n_clusters=2, random_state=42, n_init=10)
