@@ -169,12 +169,11 @@ async def start_analysis(request: StartAnalysisRequest, req: Request) -> dict[st
             )
 
             # Create detector with YOLOv8s (balanced speed/accuracy)
-            # Use shared VALID_YOLO_MODELS allowlist for safety
-            from src.api.routes.video import VALID_YOLO_MODELS
-
+            # NOTE: /api/analysis/start is a legacy processing path that does not
+            # support pose_detector or team_classifier features. For full feature
+            # support (pose detection, team color classification, user-selectable
+            # YOLO model), use /api/video/{id}/process instead.
             selected_model = "yolov8s.pt"
-            if selected_model not in VALID_YOLO_MODELS:
-                selected_model = "yolov8s.pt"
 
             detector = YOLODetector(
                 model_path=selected_model,

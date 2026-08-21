@@ -333,8 +333,8 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [] }) => {
                   // Render skeleton relative to player position with small scale
                   // Keypoints are in pixel coords; normalize to a small area around player
                   const offsetScale = 0.15; // Scale factor for skeleton display
-                  const kpCenterX = (keypoints[11]?.x ?? 0 + (keypoints[12]?.x ?? 0)) / 2;
-                  const kpCenterY = (keypoints[11]?.y ?? 0 + (keypoints[12]?.y ?? 0)) / 2;
+                  const kpCenterX = ((keypoints[11]?.x ?? 0) + (keypoints[12]?.x ?? 0)) / 2;
+                  const kpCenterY = ((keypoints[11]?.y ?? 0) + (keypoints[12]?.y ?? 0)) / 2;
                   const x1 = currentPos.x * SCALE_X + (kpA.x - kpCenterX) * offsetScale;
                   const y1 = currentPos.y * SCALE_Y + (kpA.y - kpCenterY) * offsetScale;
                   const x2 = currentPos.x * SCALE_X + (kpB.x - kpCenterX) * offsetScale;

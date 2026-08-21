@@ -190,7 +190,7 @@ class TestCollectDetectionSample:
     def test_collects_samples_and_detects(self):
         """After enough frames, should auto-detect team colors."""
         classifier = TeamClassifier(auto_detect=True)
-        assert not classifier._colors_detected
+        assert not classifier.colors_ready
 
         # Simulate 5 frames with distinct colored players
         frame = np.zeros((200, 400, 3), dtype=np.uint8)
@@ -216,7 +216,7 @@ class TestCollectDetectionSample:
 
         # After 5 frames it should have detected colors
         assert result is True
-        assert classifier._colors_detected
+        assert classifier.colors_ready
         assert classifier.team_a_color is not None
         assert classifier.team_b_color is not None
 
@@ -234,7 +234,7 @@ class TestCollectDetectionSample:
             result = classifier.collect_detection_sample(frame, bboxes)
 
         assert result is False
-        assert not classifier._colors_detected
+        assert not classifier.colors_ready
 
 
 class TestIntegration:
@@ -266,7 +266,7 @@ class TestIntegration:
         for _ in range(5):
             classifier.collect_detection_sample(frame, bboxes)
 
-        assert classifier._colors_detected
+        assert classifier.colors_ready
 
         # Now classify a new red player
         new_frame = np.zeros((100, 100, 3), dtype=np.uint8)

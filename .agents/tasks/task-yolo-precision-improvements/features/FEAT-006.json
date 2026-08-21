@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-006",
+  "type": "fix",
+  "description": "Fix 3 issues from v2 semantic review: (1) Skeleton center calculation operator precedence bug in FieldView.tsx, (2) analysis.py dead validation and feature gap documentation, (3) Private attribute access in video_processor.py - add colors_ready property to TeamClassifier.",
+  "status": "in_progress",
+  "steps": [
+    "1. Fix FieldView.tsx lines 335-336: Wrap each ?? 0 in its own parentheses to fix operator precedence bug. Change `(keypoints[11]?.x ?? 0 + (keypoints[12]?.x ?? 0)) / 2` to `((keypoints[11]?.x ?? 0) + (keypoints[12]?.x ?? 0)) / 2` for both x and y.",
+    "2. Fix analysis.py: Add a comment documenting that /api/analysis/start is a legacy path that does not support pose_detector or team_classifier features. Remove dead validation code or simplify it.",
+    "3. Fix video_processor.py: Replace `self.team_classifier._colors_detected` with `self.team_classifier.colors_ready`. Add a `@property` called `colors_ready` on TeamClassifier that returns `self._colors_detected`."
+  ],
+  "acceptance_criteria": [
+    "FieldView skeleton center uses correct parenthesization for ?? operator",
+    "analysis.py has clear documentation that it is a legacy path without pose/team features",
+    "TeamClassifier exposes a colors_ready property",
+    "video_processor.py uses the public property instead of private attribute",
+    "All backend tests pass",
+    "Frontend builds without errors"
+  ],
+  "verification": [
+    "cd backend && uv run pytest tests/ -v",
+    "cd frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

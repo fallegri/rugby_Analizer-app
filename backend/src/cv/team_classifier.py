@@ -57,6 +57,11 @@ class TeamClassifier:
         self._track_color_cache: dict[int, tuple[tuple[int, int, int], int]] = {}
         self._reclassify_interval = reclassify_interval
 
+    @property
+    def colors_ready(self) -> bool:
+        """Whether team colors have been determined (manually or via auto-detection)."""
+        return self._colors_detected
+
     def classify_player(
         self, frame: np.ndarray, bbox: tuple, track_id: Optional[int] = None, frame_num: int = 0
     ) -> Optional[str]:

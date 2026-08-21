@@ -368,7 +368,7 @@ class VideoProcessor:
             person_bboxes = [t.bbox for t in person_tracks]
 
             # If auto-detect is needed and colors not yet determined, collect samples
-            if not self.team_classifier._colors_detected and self.team_classifier.auto_detect:
+            if not self.team_classifier.colors_ready and self.team_classifier.auto_detect:
                 self.team_classifier.collect_detection_sample(frame, person_bboxes)
 
             # Classify each person track
