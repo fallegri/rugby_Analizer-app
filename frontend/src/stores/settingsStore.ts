@@ -8,6 +8,8 @@ interface SettingsState {
   theme: 'light' | 'dark';
   yoloModel: YoloModel;
   enablePose: boolean;
+  teamAColor: [number, number, number] | null;
+  teamBColor: [number, number, number] | null;
 }
 
 interface SettingsActions {
@@ -16,6 +18,8 @@ interface SettingsActions {
   toggleTheme: () => void;
   setYoloModel: (model: YoloModel) => void;
   setEnablePose: (enabled: boolean) => void;
+  setTeamAColor: (color: [number, number, number] | null) => void;
+  setTeamBColor: (color: [number, number, number] | null) => void;
 }
 
 export const useSettingsStore = create<SettingsState & SettingsActions>()(
@@ -26,6 +30,8 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       theme: 'dark',
       yoloModel: YoloModel.YOLOV8S,
       enablePose: false,
+      teamAColor: null,
+      teamBColor: null,
 
       setProvider: (provider) => set({ activeProvider: provider }),
 
@@ -42,6 +48,10 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       setYoloModel: (model) => set({ yoloModel: model }),
 
       setEnablePose: (enabled) => set({ enablePose: enabled }),
+
+      setTeamAColor: (color) => set({ teamAColor: color }),
+
+      setTeamBColor: (color) => set({ teamBColor: color }),
     }),
     {
       name: 'rugby-analyzer-settings',

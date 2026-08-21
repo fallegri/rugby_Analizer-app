@@ -21,6 +21,11 @@ const PLAYER_COLORS = [
   '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
 ];
 
+const TEAM_COLORS: Record<string, string> = {
+  team_a: '#ef4444',
+  team_b: '#3b82f6',
+};
+
 const PLAYBACK_SPEEDS = [0.5, 1, 2, 4];
 
 // Simplified skeleton connections for rendering (keypoint index pairs)
@@ -289,7 +294,9 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [] }) => {
   const renderAnimatedPlayers = () => (
     <g>
       {players.map((player, idx) => {
-        const color = PLAYER_COLORS[idx % PLAYER_COLORS.length];
+        const color = player.team_id && TEAM_COLORS[player.team_id]
+          ? TEAM_COLORS[player.team_id]
+          : PLAYER_COLORS[idx % PLAYER_COLORS.length];
         if (!player.route || player.route.length < 2) return null;
 
         // Get trail up to current time
@@ -563,7 +570,7 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [] }) => {
                 title={`Toggle heatmap for ${player.player_id}`}
                 data-testid={`heatmap-toggle-${player.player_id}`}
               >
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAYER_COLORS[idx % PLAYER_COLORS.length] }} />
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: player.team_id && TEAM_COLORS[player.team_id] ? TEAM_COLORS[player.team_id] : PLAYER_COLORS[idx % PLAYER_COLORS.length] }} />
                 <span className="text-gray-300">{player.player_id}</span>
                 {isHeatMapActive && <span className="text-[10px] text-green-400 ml-1">&#9632;</span>}
               </button>

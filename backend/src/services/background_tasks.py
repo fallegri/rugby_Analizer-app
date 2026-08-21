@@ -251,6 +251,7 @@ class BackgroundTaskManager:
                     "max_speed_kmh": getattr(analytics, "max_speed_kmh", 0.0),
                     "avg_speed_kmh": getattr(analytics, "avg_speed_kmh", 0.0),
                     "sprint_count": len(getattr(analytics, "sprint_segments", [])),
+                    "team_id": result.team_classifications.get(track_id) if hasattr(result, "team_classifications") else None,
                     "sprints": [
                         {
                             "start_time": seg.start_frame / result.fps if result.fps > 0 else 0.0,

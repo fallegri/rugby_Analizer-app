@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Team color classifier: After detecting a player, analyze dominant color in bounding box to classify team A vs team B. User can configure team colors in UI or system auto-detects via K-means clustering. Add team_id to PlayerMetrics so FieldView colors players by team.",
+  "status": "in_progress",
+  "steps": [
+    "1. Create backend/src/cv/team_classifier.py: Implement TeamClassifier class with: (a) __init__(team_a_color: Optional[tuple[int,int,int]], team_b_color: Optional[tuple[int,int,int]], auto_detect: bool = True), (b) classify_player(frame: np.ndarray, bbox: tuple) -> Optional[str] that crops the bounding box, extracts the dominant color from the upper body region (top 40% of bbox), converts to HSV, and compares to team colors. Returns 'team_a', 'team_b', or None. (c) auto_detect_teams(frame: np.ndarray, bboxes: list[tuple]) -> tuple[tuple, tuple] that uses K-means (k=2) on dominant colors from all player boxes to determine the two team colors. (d) _get_dominant_color(image_crop: np.ndarray) -> tuple[int,int,int] using K-means with k=3, picking the most frequent non-green (field) cluster.",
+    "2. Update backend/src/cv/video_processor.py: Add optional team_classifier parameter. In _process_single_frame, after tracking, if team_classifier is set, classify each person track and store team_id. Add team_classifications dict[int, str] to FrameResult. Run auto-detection on the first few frames if no manual colors provided.",
+    "3. Update backend/src/services/background_tasks.py: In the results serialization loop, include 'team_id' in player_metrics dict (from the last known classification for that track). Default to null if not classified.",
+    "4. Update backend/src/api/routes/video.py: Add 'team_a_color' and 'team_b_color' optional fields to ProcessRequest (each as Optional[list[int]] representing RGB). In process_video(), create TeamClassifier with provided colors (or auto_detect=True if not provided) and pass to VideoProcessor.",
+    "5. In frontend/src/types/index.ts: Add 'team_id' optional field to PlayerMetrics interface (type: 'team_a' | 'team_b' | null | undefined). Add TeamColors interface with team_a_color and team_b_color as [number, number, number] | null.",
+    "6. In frontend/src/stores/settingsStore.ts: Add teamAColor and teamBColor state (type: [number, number, number] | null, default null for auto-detect), and setTeamAColor/setTeamBColor actions.",
+    "7. In frontend/src/components/Settings.tsx: Add 'Team Colors' section with two color pickers (or RGB input fields) for Team A and Team B. Include an 'Auto-detect' checkbox (default checked) that clears manual colors. When manual colors are set, show color swatches.",
+    "8. In frontend/src/components/FieldView.tsx: Instead of using the PLAYER_COLORS array by index, if player.team_id is available, use team-specific colors: team_a = '#ef4444' (red), team_b = '#3b82f6' (blue). Fall back to index-based colors if no team_id.",
+    "9. In frontend/src/services/api.ts: In startProcessing(), include team_a_color and team_b_color from settings store if set (not null).",
+    "10. Create backend/tests/unit/test_team_classifier.py: Test TeamClassifier with synthetic images (solid color patches). Test auto_detect_teams with two distinct colored groups. Test classify_player returns correct team. Test _get_dominant_color ignores green."
+  ],
+  "acceptance_criteria": [
+    "TeamClassifier can classify players into team_a or team_b by color",
+    "Auto-detection via K-means works when no manual colors provided",
+    "team_id is included in backend results for each player",
+    "Frontend Settings has team color configuration",
+    "FieldView uses team-based colors when team_id is available",
+    "Backend tests pass including new test_team_classifier.py",
+    "Frontend builds without TypeScript errors"
+  ],
+  "verification": [
+    "cd backend && uv run pytest tests/unit/test_team_classifier.py -v",
+    "cd backend && uv run pytest tests/ -v",
+    "cd frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

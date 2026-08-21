@@ -72,6 +72,7 @@ export interface PlayerMetrics {
   sprint_count: number;
   sprints: SprintSegment[];
   route: RoutePoint[];
+  team_id?: 'team_a' | 'team_b' | null;
 }
 
 export interface TrackingResult {
@@ -225,4 +226,9 @@ export interface RSAMetrics {
     window_start: number;
     window_end: number;
   }[];
+}
+
+export interface TeamColors {
+  team_a_color: [number, number, number] | null;
+  team_b_color: [number, number, number] | null;
 }

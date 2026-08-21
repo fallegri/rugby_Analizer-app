@@ -60,6 +60,8 @@ class ProcessRequest(BaseModel):
     player_selections: Optional[list[dict]] = None
     yolo_model: Optional[str] = Field(default="yolov8s.pt", description="YOLO model to use for detection")
     enable_pose: Optional[bool] = Field(default=False, description="Enable pose/skeleton detection for posture analysis")
+    team_a_color: Optional[list[int]] = Field(default=None, description="RGB color for team A jersey (e.g. [255, 0, 0])")
+    team_b_color: Optional[list[int]] = Field(default=None, description="RGB color for team B jersey (e.g. [0, 0, 255])")
 
 
 class ProcessingResult(BaseModel):
@@ -295,6 +297,26 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
             )
             logger.info(f"[Session {session_id}] Pose detector enabled")
 
+        # Create team classifier for jersey color-based team assignment
+        from src.cv.team_classifier import TeamClassifier
+        team_a_color = None
+        team_b_color = None
+        if request.team_a_color and len(request.team_a_color) == 3:
+            team_a_color = tuple(request.team_a_color)
+        if request.team_b_color and len(request.team_b_color) == 3:
+            team_b_color = tuple(request.team_b_color)
+
+        auto_detect = team_a_color is None or team_b_color is None
+        team_classifier = TeamClassifier(
+            team_a_color=team_a_color,
+            team_b_color=team_b_color,
+            auto_detect=auto_detect,
+        )
+        logger.info(
+            f"[Session {session_id}] Team classifier: "
+            f"auto_detect={auto_detect}, team_a={team_a_color}, team_b={team_b_color}"
+        )
+
         # Create ByteTrack-style tracker
         tracker = MultiObjectTracker(
             iou_threshold=0.3,
@@ -400,6 +422,7 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
             analytics_engine=analytics_engine,
             player_selection_boxes=player_selection_boxes,
             pose_detector=pose_detector,
+            team_classifier=team_classifier,
         )
         logger.info(f"[Session {session_id}] CV pipeline initialized successfully")
 

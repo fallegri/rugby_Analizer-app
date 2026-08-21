@@ -24,10 +24,27 @@ const YOLO_MODELS = [
   { id: YoloModel.YOLOV8L, label: 'YOLOv8l', description: 'Maxima precision' },
 ];
 
+function rgbToHex(rgb: [number, number, number]): string {
+  return '#' + rgb.map(c => c.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToRgb(hex: string): [number, number, number] | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
+    : null;
+}
+
 export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
-  const { activeProvider, apiKeys, theme, yoloModel, enablePose, setProvider, setApiKey, toggleTheme, setYoloModel, setEnablePose } = useSettingsStore();
+  const {
+    activeProvider, apiKeys, theme, yoloModel, enablePose,
+    teamAColor, teamBColor,
+    setProvider, setApiKey, toggleTheme, setYoloModel, setEnablePose,
+    setTeamAColor, setTeamBColor,
+  } = useSettingsStore();
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [autoDetectTeams, setAutoDetectTeams] = useState(teamAColor === null && teamBColor === null);
 
   if (!isOpen) return null;
 
@@ -118,6 +135,72 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 <p className="text-xs text-gray-400">Enables posture detection for better tackle/play analysis</p>
               </div>
             </button>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-300 mb-2 block">Team Colors</label>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  const newAutoDetect = !autoDetectTeams;
+                  setAutoDetectTeams(newAutoDetect);
+                  if (newAutoDetect) {
+                    setTeamAColor(null);
+                    setTeamBColor(null);
+                  }
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                  autoDetectTeams ? 'border-rugby-gold bg-rugby-gold/10' : 'border-gray-600 hover:border-gray-400'
+                }`}
+              >
+                <div className={`w-10 h-5 rounded-full relative transition-colors ${autoDetectTeams ? 'bg-rugby-gold' : 'bg-gray-600'}`}>
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${autoDetectTeams ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </div>
+                <div>
+                  <p className="text-sm text-white font-medium">Auto-detect</p>
+                  <p className="text-xs text-gray-400">Automatically detect team colors via clustering</p>
+                </div>
+              </button>
+
+              {!autoDetectTeams && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs text-gray-400 w-16">Team A</label>
+                    <input
+                      type="color"
+                      value={teamAColor ? rgbToHex(teamAColor) : '#ef4444'}
+                      onChange={(e) => {
+                        const rgb = hexToRgb(e.target.value);
+                        if (rgb) setTeamAColor(rgb);
+                      }}
+                      className="w-10 h-8 rounded border border-gray-600 cursor-pointer bg-transparent"
+                    />
+                    {teamAColor && (
+                      <span className="text-xs text-gray-400">
+                        RGB({teamAColor[0]}, {teamAColor[1]}, {teamAColor[2]})
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs text-gray-400 w-16">Team B</label>
+                    <input
+                      type="color"
+                      value={teamBColor ? rgbToHex(teamBColor) : '#3b82f6'}
+                      onChange={(e) => {
+                        const rgb = hexToRgb(e.target.value);
+                        if (rgb) setTeamBColor(rgb);
+                      }}
+                      className="w-10 h-8 rounded border border-gray-600 cursor-pointer bg-transparent"
+                    />
+                    {teamBColor && (
+                      <span className="text-xs text-gray-400">
+                        RGB({teamBColor[0]}, {teamBColor[1]}, {teamBColor[2]})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div>

@@ -22,6 +22,9 @@ AnyTransform = Union[HomographyTransform, LinearFieldTransform, DefaultFieldTran
 # Import PoseDetector type for optional integration
 from src.cv.pose_detector import PoseDetector
 
+# Import TeamClassifier type for optional integration
+from src.cv.team_classifier import TeamClassifier
+
 
 @dataclass
 class FrameResult:
@@ -33,6 +36,7 @@ class FrameResult:
         tracks: Active tracks after update.
         filtered: Filtered result from tracking strategy.
         field_positions: Transformed field coordinates for filtered tracks.
+        team_classifications: Mapping of track_id to team assignment.
     """
 
     frame_num: int
@@ -40,6 +44,7 @@ class FrameResult:
     tracks: list[Track] = field(default_factory=list)
     filtered: Optional[FilteredResult] = None
     field_positions: list[tuple[int, float, float]] = field(default_factory=list)
+    team_classifications: dict[int, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -52,6 +57,7 @@ class AnalysisResult:
         duration_s: Video duration in seconds.
         analytics: Per-track analytics results (track_id -> AnalyticsResult).
         frame_results: List of per-frame results (may be empty if not stored).
+        team_classifications: Final team assignment per track (track_id -> team).
     """
 
     total_frames: int = 0
@@ -59,6 +65,7 @@ class AnalysisResult:
     duration_s: float = 0.0
     analytics: dict[int, AnalyticsResult] = field(default_factory=dict)
     frame_results: list[FrameResult] = field(default_factory=list)
+    team_classifications: dict[int, str] = field(default_factory=dict)
 
 
 class VideoProcessor:
@@ -95,6 +102,7 @@ class VideoProcessor:
         frame_height: float = 1080.0,
         player_selection_boxes: Optional[list[dict]] = None,
         pose_detector: Optional[PoseDetector] = None,
+        team_classifier: Optional[TeamClassifier] = None,
     ):
         self.detector = detector
         self.tracker = tracker
@@ -105,7 +113,10 @@ class VideoProcessor:
         self.frame_height = frame_height
         self.player_selection_boxes = player_selection_boxes or []
         self.pose_detector = pose_detector
+        self.team_classifier = team_classifier
         self._track_histories: dict[int, list[tuple[float, float, int]]] = {}
+        # Team classification results per track (track_id -> team assignment)
+        self._track_teams: dict[int, str] = {}
         # Target acquisition: maps selection index -> acquired track ID
         self._acquired_targets: dict[int, int] = {}
         # Number of frames to search for target acquisition
@@ -156,6 +167,7 @@ class VideoProcessor:
 
         self.tracker.reset()
         self._track_histories = {}
+        self._track_teams = {}
         self._acquired_targets = {}
 
         result = AnalysisResult(
@@ -195,6 +207,9 @@ class VideoProcessor:
                 if len(history) >= 2:
                     result.analytics[track_id] = self.analytics_engine.compute(history)
 
+        # Store team classifications in result
+        result.team_classifications = dict(self._track_teams)
+
         return result
 
     async def process_video_stream(
@@ -231,6 +246,7 @@ class VideoProcessor:
 
         self.tracker.reset()
         self._track_histories = {}
+        self._track_teams = {}
         self._acquired_targets = {}
 
         frame_num = 0
@@ -285,6 +301,7 @@ class VideoProcessor:
 
         self.tracker.reset()
         self._track_histories = {}
+        self._track_teams = {}
         self._acquired_targets = {}
 
         frame_num = 0
@@ -334,6 +351,27 @@ class VideoProcessor:
 
         tracks = self.tracker.update(detections, frame_num)
 
+        # Team classification
+        team_classifications: dict[int, str] = {}
+        if self.team_classifier is not None:
+            # Collect person track bboxes for auto-detection
+            person_tracks = [t for t in tracks if t.class_id == 0]
+            person_bboxes = [t.bbox for t in person_tracks]
+
+            # If auto-detect is needed and colors not yet determined, collect samples
+            if not self.team_classifier._colors_detected and self.team_classifier.auto_detect:
+                self.team_classifier.collect_detection_sample(frame, person_bboxes)
+
+            # Classify each person track
+            for track in person_tracks:
+                team = self.team_classifier.classify_player(frame, track.bbox)
+                if team is not None:
+                    team_classifications[track.id] = team
+                    self._track_teams[track.id] = team
+                elif track.id in self._track_teams:
+                    # Use last known classification
+                    team_classifications[track.id] = self._track_teams[track.id]
+
         filtered = None
         if self.tracking_strategy:
             filtered = self.tracking_strategy.process_frame(
@@ -368,6 +406,7 @@ class VideoProcessor:
             tracks=tracks,
             filtered=filtered,
             field_positions=field_positions,
+            team_classifications=team_classifications,
         )
 
     def _merge_pose_keypoints(
