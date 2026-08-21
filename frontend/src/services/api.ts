@@ -43,10 +43,11 @@ export async function startProcessing(
     player_selections?: { x: number; y: number; width: number; height: number }[];
   }
 ): Promise<{ session_id: string }> {
-  const yoloModel = useSettingsStore.getState().yoloModel;
+  const { yoloModel, enablePose } = useSettingsStore.getState();
   const response = await apiClient.post(`/video/${videoId}/process`, {
     ...config,
     yolo_model: yoloModel,
+    enable_pose: enablePose,
   });
   return response.data;
 }

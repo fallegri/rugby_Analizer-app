@@ -19,6 +19,9 @@ from src.cv.transform import DefaultFieldTransform, HomographyTransform, LinearF
 # Type alias for any supported transform
 AnyTransform = Union[HomographyTransform, LinearFieldTransform, DefaultFieldTransform]
 
+# Import PoseDetector type for optional integration
+from src.cv.pose_detector import PoseDetector
+
 
 @dataclass
 class FrameResult:
@@ -91,6 +94,7 @@ class VideoProcessor:
         frame_width: float = 1920.0,
         frame_height: float = 1080.0,
         player_selection_boxes: Optional[list[dict]] = None,
+        pose_detector: Optional[PoseDetector] = None,
     ):
         self.detector = detector
         self.tracker = tracker
@@ -100,6 +104,7 @@ class VideoProcessor:
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.player_selection_boxes = player_selection_boxes or []
+        self.pose_detector = pose_detector
         self._track_histories: dict[int, list[tuple[float, float, int]]] = {}
         # Target acquisition: maps selection index -> acquired track ID
         self._acquired_targets: dict[int, int] = {}
@@ -321,6 +326,12 @@ class VideoProcessor:
     ) -> FrameResult:
         """Process a single frame through the pipeline."""
         detections = self.detector.detect_frame(frame)
+
+        # If pose detector is enabled, run pose detection and merge keypoints
+        if self.pose_detector is not None:
+            pose_detections = self.pose_detector.detect_poses(frame)
+            detections = self._merge_pose_keypoints(detections, pose_detections)
+
         tracks = self.tracker.update(detections, frame_num)
 
         filtered = None
@@ -358,6 +369,47 @@ class VideoProcessor:
             filtered=filtered,
             field_positions=field_positions,
         )
+
+    def _merge_pose_keypoints(
+        self,
+        detections: list[Detection],
+        pose_detections: list,
+    ) -> list[Detection]:
+        """Merge keypoints from pose detections into main detections via IoU matching.
+
+        For each main detection (person), find the pose detection with the highest
+        IoU overlap and copy its keypoints into the detection.
+
+        Args:
+            detections: Main detections from the object detector.
+            pose_detections: Pose detections with keypoints from the pose detector.
+
+        Returns:
+            Updated list of detections with keypoints merged where matched.
+        """
+        if not pose_detections:
+            return detections
+
+        from src.cv.tracker import _iou
+
+        for det in detections:
+            # Only merge keypoints for person detections
+            if det.class_id != 0:
+                continue
+
+            best_iou = 0.3  # Minimum IoU threshold for matching
+            best_pose = None
+
+            for pose in pose_detections:
+                iou_val = _iou(det.bbox, pose.bbox)
+                if iou_val > best_iou:
+                    best_iou = iou_val
+                    best_pose = pose
+
+            if best_pose is not None and best_pose.keypoints:
+                det.keypoints = best_pose.keypoints
+
+        return detections
 
     def _compute_iou(self, box_a: tuple, box_b: dict) -> float:
         """Compute Intersection over Union between a track bbox and a selection box.

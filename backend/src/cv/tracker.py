@@ -21,6 +21,7 @@ class Track:
         class_id: COCO class ID of the tracked object.
         confidence: Latest detection confidence.
         history: List of (center_x, center_y, frame_num) tuples.
+        keypoints: Optional pose keypoints from the latest matched detection.
     """
 
     id: int
@@ -28,6 +29,7 @@ class Track:
     class_id: int
     confidence: float
     history: list[tuple[float, float, int]] = field(default_factory=list)
+    keypoints: Optional[list[tuple[float, float, float]]] = None
 
 
 def _iou(box_a: tuple[float, float, float, float], box_b: tuple[float, float, float, float]) -> float:
@@ -134,6 +136,7 @@ class MultiObjectTracker:
             track.bbox = det.bbox
             track.confidence = det.confidence
             track.class_id = det.class_id
+            track.keypoints = det.keypoints
 
             cx = (det.bbox[0] + det.bbox[2]) / 2.0
             cy = (det.bbox[1] + det.bbox[3]) / 2.0
@@ -196,6 +199,7 @@ class MultiObjectTracker:
             class_id=detection.class_id,
             confidence=detection.confidence,
             history=[(cx, cy, frame_num)],
+            keypoints=detection.keypoints,
         )
 
         self._tracks.append(track)

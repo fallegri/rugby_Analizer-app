@@ -20,12 +20,14 @@ class Detection:
         class_id: COCO class ID (0=person, 32=sports ball).
         confidence: Detection confidence score [0.0, 1.0].
         class_name: Human-readable class name.
+        keypoints: Optional list of (x, y, confidence) tuples for pose keypoints.
     """
 
     bbox: tuple[float, float, float, float]
     class_id: int
     confidence: float
     class_name: str
+    keypoints: Optional[list[tuple[float, float, float]]] = None
 
 
 class YOLODetector:

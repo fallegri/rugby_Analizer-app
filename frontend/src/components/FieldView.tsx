@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { ZoomIn, ZoomOut, Maximize2, Play, Pause, SkipBack } from 'lucide-react';
 import { PlayerMetrics, RoutePoint } from '../types';
+import { useSettingsStore } from '../stores/settingsStore';
 
 interface FieldViewProps {
   players?: PlayerMetrics[];
@@ -21,6 +22,17 @@ const PLAYER_COLORS = [
 ];
 
 const PLAYBACK_SPEEDS = [0.5, 1, 2, 4];
+
+// Simplified skeleton connections for rendering (keypoint index pairs)
+// Shoulders-hips-knees connections for a simplified skeleton view
+const SKELETON_CONNECTIONS: [number, number][] = [
+  [5, 6],   // left shoulder - right shoulder
+  [5, 11],  // left shoulder - left hip
+  [6, 12],  // right shoulder - right hip
+  [11, 12], // left hip - right hip
+  [11, 13], // left hip - left knee
+  [12, 14], // right hip - right knee
+];
 
 /**
  * Interpolates the player position at a given time from the route array.
@@ -87,6 +99,37 @@ function getTrailPoints(route: RoutePoint[], time: number): { x: number; y: numb
   return trail;
 }
 
+/**
+ * Interpolates keypoints for a player at a given time from the route.
+ * Returns keypoints from the nearest route point that has them, or undefined.
+ */
+function getKeypointsAtTime(
+  route: RoutePoint[],
+  time: number
+): { x: number; y: number; confidence: number }[] | undefined {
+  if (!route || route.length === 0) return undefined;
+
+  // Find the closest route point to current time that has keypoints
+  let bestPt: RoutePoint | undefined;
+  let bestDiff = Infinity;
+
+  for (const pt of route) {
+    if (pt.keypoints && pt.keypoints.length > 0) {
+      const diff = Math.abs(pt.timestamp - time);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestPt = pt;
+      }
+    }
+  }
+
+  // Only use keypoints if within 0.5 seconds of current time
+  if (bestPt && bestDiff <= 0.5) {
+    return bestPt.keypoints;
+  }
+  return undefined;
+}
+
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
@@ -100,6 +143,7 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [] }) => {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedHeatMapPlayers, setSelectedHeatMapPlayers] = useState<string[]>([]);
+  const { enablePose } = useSettingsStore();
 
   // Animation state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -255,6 +299,9 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [] }) => {
         const trailPathPoints = trail.map((pt) => `${pt.x * SCALE_X},${pt.y * SCALE_Y}`).join(' ');
         const currentPos = trail[trail.length - 1];
 
+        // Get keypoints for skeleton rendering
+        const keypoints = enablePose ? getKeypointsAtTime(player.route, currentTime) : undefined;
+
         return (
           <g key={player.player_id}>
             {/* Trail / estela */}
@@ -268,6 +315,37 @@ export const FieldView: React.FC<FieldViewProps> = ({ players = [] }) => {
                 strokeLinejoin="round"
                 opacity={0.6}
               />
+            )}
+            {/* Skeleton lines (when pose detection is enabled and keypoints available) */}
+            {enablePose && keypoints && keypoints.length >= 15 && (
+              <g opacity={0.4}>
+                {SKELETON_CONNECTIONS.map(([i, j], connIdx) => {
+                  const kpA = keypoints[i];
+                  const kpB = keypoints[j];
+                  if (!kpA || !kpB || kpA.confidence < 0.3 || kpB.confidence < 0.3) return null;
+                  // Render skeleton relative to player position with small scale
+                  // Keypoints are in pixel coords; normalize to a small area around player
+                  const offsetScale = 0.15; // Scale factor for skeleton display
+                  const kpCenterX = (keypoints[11]?.x ?? 0 + (keypoints[12]?.x ?? 0)) / 2;
+                  const kpCenterY = (keypoints[11]?.y ?? 0 + (keypoints[12]?.y ?? 0)) / 2;
+                  const x1 = currentPos.x * SCALE_X + (kpA.x - kpCenterX) * offsetScale;
+                  const y1 = currentPos.y * SCALE_Y + (kpA.y - kpCenterY) * offsetScale;
+                  const x2 = currentPos.x * SCALE_X + (kpB.x - kpCenterX) * offsetScale;
+                  const y2 = currentPos.y * SCALE_Y + (kpB.y - kpCenterY) * offsetScale;
+                  return (
+                    <line
+                      key={`skeleton-${player.player_id}-${connIdx}`}
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke="white"
+                      strokeWidth={1}
+                      strokeLinecap="round"
+                    />
+                  );
+                })}
+              </g>
             )}
             {/* Current position */}
             <circle

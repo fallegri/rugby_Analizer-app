@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add YOLOv8-pose for posture/skeleton detection. Add a PoseDetector class that uses yolov8s-pose.pt to extract keypoints. Integrate keypoints into tracking (add keypoints to Detection/Track), enhance play_detector tackle detection with posture analysis, and optionally render simplified skeletons on FieldView.",
+  "status": "in_progress",
+  "steps": [
+    "1. Create backend/src/cv/pose_detector.py: Implement PoseDetector class following YOLODetector pattern. It uses yolov8s-pose.pt, returns PoseDetection dataclass (extends Detection with keypoints: list of (x, y, confidence) for 17 COCO keypoints). Include method detect_poses(frame) that returns list of PoseDetection. The keypoints array follows COCO format: nose, left_eye, right_eye, left_ear, right_ear, left_shoulder, right_shoulder, left_elbow, right_elbow, left_wrist, right_wrist, left_hip, right_hip, left_knee, right_knee, left_ankle, right_ankle.",
+    "2. Update backend/src/cv/detector.py: Add optional 'keypoints' field to the Detection dataclass (default None, type Optional[list[tuple[float, float, float]]]).",
+    "3. Update backend/src/cv/tracker.py: Add optional 'keypoints' field to the Track dataclass (default None). In MultiObjectTracker.update(), propagate keypoints from Detection to Track when matched.",
+    "4. Update backend/src/cv/video_processor.py: Add optional pose_detector parameter to VideoProcessor. In _process_single_frame, if pose_detector is set, run pose detection on the frame and merge keypoints into existing detections by matching bounding boxes via IoU. Store keypoints in the Track for downstream consumers.",
+    "5. Update backend/src/cv/play_detector.py: Add posture-based tackle enhancement. Add a method _is_tackle_posture(keypoints) that checks if the player's torso angle (shoulder-hip line) indicates a low/diving posture (angle > 45 degrees from vertical). In _detect_tackles, if keypoints are available in route points, boost tackle confidence when posture confirms it.",
+    "6. Update backend/src/api/routes/video.py: In process_video(), after creating the main detector, also create a PoseDetector if the request includes 'enable_pose' (new optional boolean field in ProcessRequest, default False). Pass it to VideoProcessor.",
+    "7. In frontend/src/types/index.ts: Add 'keypoints' optional field to RoutePoint type (type: {x: number, y: number, confidence: number}[] | undefined). Add 'enable_pose' to types used in process requests.",
+    "8. In frontend/src/stores/settingsStore.ts: Add 'enablePose' boolean state (default: false) and 'setEnablePose' action.",
+    "9. In frontend/src/components/Settings.tsx: Add a toggle for 'Pose Detection (Skeleton)' under the model selection, with description 'Enables posture detection for better tackle/play analysis'.",
+    "10. In frontend/src/components/FieldView.tsx: When keypoints are available and enablePose is true, render simplified skeleton lines (shoulders-hips-knees connections) scaled to field coordinates near each player circle. Use thin white lines with 0.4 opacity.",
+    "11. In frontend/src/services/api.ts: In startProcessing(), include enable_pose from settings store.",
+    "12. Add backend/tests/unit/test_pose_detector.py: Unit tests mocking the YOLO pose model. Test that keypoints are extracted correctly, that the PoseDetector can be instantiated, and that detect_poses returns PoseDetection objects."
+  ],
+  "acceptance_criteria": [
+    "PoseDetector class exists and can detect poses with keypoints",
+    "Detection and Track dataclasses support optional keypoints",
+    "VideoProcessor integrates pose detection when enabled",
+    "PlayDetector uses posture data to enhance tackle detection",
+    "Frontend Settings has toggle for pose detection",
+    "FieldView renders simplified skeletons when enabled and data available",
+    "Backend tests pass including new test_pose_detector.py",
+    "Frontend builds without errors"
+  ],
+  "verification": [
+    "cd backend && uv run pytest tests/unit/test_pose_detector.py -v",
+    "cd backend && uv run pytest tests/ -v",
+    "cd frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

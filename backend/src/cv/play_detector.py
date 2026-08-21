@@ -152,6 +152,15 @@ class PlayDetector:
                             (max(speed_a, speed_b) / self.TACKLE_SPEED_THRESHOLD_KMH)
                             * (1.0 - dist / self.TACKLE_DISTANCE_THRESHOLD_M)
                         )
+
+                        # Boost confidence if posture data confirms tackle posture
+                        keypoints_a = pt_a.get("keypoints")
+                        keypoints_b = pt_b.get("keypoints")
+                        if keypoints_a and self._is_tackle_posture(keypoints_a):
+                            confidence = min(1.0, confidence * 1.3)
+                        if keypoints_b and self._is_tackle_posture(keypoints_b):
+                            confidence = min(1.0, confidence * 1.3)
+
                         plays.append(DetectedPlay(
                             play_type="tackle",
                             start_time=max(0.0, t - self.TACKLE_TIME_WINDOW_S),
@@ -652,6 +661,71 @@ class PlayDetector:
         if best_key is None:
             return None
         return index[best_key]
+
+    def _is_tackle_posture(self, keypoints: list) -> bool:
+        """Check if keypoints indicate a tackle posture (low/diving position).
+
+        Analyzes the shoulder-hip line angle relative to vertical.
+        A player in tackle posture has their torso angled more than 45 degrees
+        from vertical (leaning forward or diving).
+
+        Args:
+            keypoints: List of (x, y, confidence) tuples for 17 COCO keypoints.
+
+        Returns:
+            True if the posture indicates a tackle (torso angle > 45 degrees).
+        """
+        if not keypoints or len(keypoints) < 13:
+            return False
+
+        # COCO indices: 5=left_shoulder, 6=right_shoulder, 11=left_hip, 12=right_hip
+        left_shoulder = keypoints[5] if len(keypoints) > 5 else None
+        right_shoulder = keypoints[6] if len(keypoints) > 6 else None
+        left_hip = keypoints[11] if len(keypoints) > 11 else None
+        right_hip = keypoints[12] if len(keypoints) > 12 else None
+
+        # Need at least one shoulder and one hip with sufficient confidence
+        min_conf = 0.3
+
+        shoulder_x, shoulder_y = None, None
+        if left_shoulder and left_shoulder[2] >= min_conf:
+            shoulder_x, shoulder_y = left_shoulder[0], left_shoulder[1]
+        if right_shoulder and right_shoulder[2] >= min_conf:
+            if shoulder_x is None:
+                shoulder_x, shoulder_y = right_shoulder[0], right_shoulder[1]
+            else:
+                # Average both shoulders for midpoint
+                shoulder_x = (shoulder_x + right_shoulder[0]) / 2
+                shoulder_y = (shoulder_y + right_shoulder[1]) / 2
+
+        hip_x, hip_y = None, None
+        if left_hip and left_hip[2] >= min_conf:
+            hip_x, hip_y = left_hip[0], left_hip[1]
+        if right_hip and right_hip[2] >= min_conf:
+            if hip_x is None:
+                hip_x, hip_y = right_hip[0], right_hip[1]
+            else:
+                hip_x = (hip_x + right_hip[0]) / 2
+                hip_y = (hip_y + right_hip[1]) / 2
+
+        if shoulder_x is None or hip_x is None:
+            return False
+
+        # Compute angle of torso from vertical
+        # In image coordinates, y increases downward, so hip is usually below shoulder
+        dx = shoulder_x - hip_x
+        dy = shoulder_y - hip_y  # negative when shoulder is above hip (normal standing)
+
+        # Angle from vertical (0 = standing upright, 90 = horizontal)
+        torso_length = math.sqrt(dx * dx + dy * dy)
+        if torso_length < 1.0:
+            return False
+
+        # Angle from vertical: use atan2 of horizontal displacement vs vertical
+        angle_from_vertical = math.degrees(math.atan2(abs(dx), abs(dy)))
+
+        # Tackle posture: torso angled > 45 degrees from vertical
+        return angle_from_vertical > 45.0
 
     def _deduplicate_plays(
         self,

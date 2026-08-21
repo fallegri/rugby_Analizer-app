@@ -59,6 +59,7 @@ class ProcessRequest(BaseModel):
     play_area: Optional[dict] = None
     player_selections: Optional[list[dict]] = None
     yolo_model: Optional[str] = Field(default="yolov8s.pt", description="YOLO model to use for detection")
+    enable_pose: Optional[bool] = Field(default=False, description="Enable pose/skeleton detection for posture analysis")
 
 
 class ProcessingResult(BaseModel):
@@ -283,6 +284,17 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
             device=yolo_device,
         )
 
+        # Optionally create pose detector for skeleton/posture analysis
+        pose_detector = None
+        if request.enable_pose:
+            from src.cv.pose_detector import PoseDetector
+            pose_detector = PoseDetector(
+                model_path="yolov8s-pose.pt",
+                confidence_threshold=0.25,
+                device=yolo_device,
+            )
+            logger.info(f"[Session {session_id}] Pose detector enabled")
+
         # Create ByteTrack-style tracker
         tracker = MultiObjectTracker(
             iou_threshold=0.3,
@@ -387,6 +399,7 @@ async def process_video(video_id: str, request: ProcessRequest, req: Request) ->
             tracking_strategy=tracking_strategy,
             analytics_engine=analytics_engine,
             player_selection_boxes=player_selection_boxes,
+            pose_detector=pose_detector,
         )
         logger.info(f"[Session {session_id}] CV pipeline initialized successfully")
 

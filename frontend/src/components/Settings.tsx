@@ -25,7 +25,7 @@ const YOLO_MODELS = [
 ];
 
 export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
-  const { activeProvider, apiKeys, theme, yoloModel, setProvider, setApiKey, toggleTheme, setYoloModel } = useSettingsStore();
+  const { activeProvider, apiKeys, theme, yoloModel, enablePose, setProvider, setApiKey, toggleTheme, setYoloModel, setEnablePose } = useSettingsStore();
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
 
@@ -100,6 +100,24 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-300 mb-2 block">Pose Detection (Skeleton)</label>
+            <button
+              onClick={() => setEnablePose(!enablePose)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                enablePose ? 'border-rugby-gold bg-rugby-gold/10' : 'border-gray-600 hover:border-gray-400'
+              }`}
+            >
+              <div className={`w-10 h-5 rounded-full relative transition-colors ${enablePose ? 'bg-rugby-gold' : 'bg-gray-600'}`}>
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${enablePose ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </div>
+              <div>
+                <p className="text-sm text-white font-medium">{enablePose ? 'Enabled' : 'Disabled'}</p>
+                <p className="text-xs text-gray-400">Enables posture detection for better tackle/play analysis</p>
+              </div>
+            </button>
           </div>
 
           <div>

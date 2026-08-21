@@ -54,6 +54,7 @@ export interface RoutePoint {
   y: number;
   timestamp: number;
   speed: number;
+  keypoints?: { x: number; y: number; confidence: number }[];
 }
 
 export interface SprintSegment {

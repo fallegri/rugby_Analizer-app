@@ -7,6 +7,7 @@ interface SettingsState {
   apiKeys: Record<string, string>;
   theme: 'light' | 'dark';
   yoloModel: YoloModel;
+  enablePose: boolean;
 }
 
 interface SettingsActions {
@@ -14,6 +15,7 @@ interface SettingsActions {
   setApiKey: (provider: string, key: string) => void;
   toggleTheme: () => void;
   setYoloModel: (model: YoloModel) => void;
+  setEnablePose: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState & SettingsActions>()(
@@ -23,6 +25,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       apiKeys: {},
       theme: 'dark',
       yoloModel: YoloModel.YOLOV8S,
+      enablePose: false,
 
       setProvider: (provider) => set({ activeProvider: provider }),
 
@@ -37,6 +40,8 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
         })),
 
       setYoloModel: (model) => set({ yoloModel: model }),
+
+      setEnablePose: (enabled) => set({ enablePose: enabled }),
     }),
     {
       name: 'rugby-analyzer-settings',
