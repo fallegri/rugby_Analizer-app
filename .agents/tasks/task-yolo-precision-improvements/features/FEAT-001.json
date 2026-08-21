@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Change default YOLO model from yolov8n to yolov8s and add UI model selection. Users can choose between yolov8n (fast), yolov8s (balanced), yolov8m (precise), yolov8l (max precision) from the Settings modal. The selected model is passed to the backend via the ProcessRequest.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. In backend/src/api/routes/video.py: Add 'yolo_model' optional field to ProcessRequest (default: 'yolov8s.pt'). In process_video(), read request.yolo_model and use it when instantiating YOLODetector instead of hardcoded 'yolov8n.pt'. Validate the model name is one of: yolov8n.pt, yolov8s.pt, yolov8m.pt, yolov8l.pt.",
     "2. In backend/src/api/routes/analysis.py: Similarly update the detector instantiation (around line 172) to accept model from the request if available, defaulting to 'yolov8s.pt'.",
@@ -28,5 +28,5 @@
     "cd frontend && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "libGL.so.1 missing on host - installed mesa-libGL via dnf. Frontend uses mise for node@20, needs MISE_NODE_VERIFY=0 to install without gpg-agent. npm install required before build."
 }
