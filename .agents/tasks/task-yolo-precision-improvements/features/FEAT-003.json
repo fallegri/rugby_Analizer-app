@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Prepare fine-tuning infrastructure: scripts and documentation for users to train custom YOLO models with rugby data. Includes training script, dataset config, frame extraction script, and labeling guide.",
+  "status": "in_progress",
+  "steps": [
+    "1. Create backend/scripts/ directory.",
+    "2. Create backend/scripts/train_model.py: A training script that uses ultralytics YOLO .train() method. Accept CLI arguments: --model (base model, default yolov8s.pt), --data (dataset yaml path, default rugby_dataset.yaml), --epochs (default 100), --imgsz (default 640), --batch (default 16), --device (default auto), --project (output dir, default runs/train), --name (run name, default rugby-custom). Include proper argparse, logging, and validation that the dataset yaml exists.",
+    "3. Create backend/scripts/rugby_dataset.yaml: YOLO dataset config template with paths (train, val, test as relative paths datasets/rugby/train, datasets/rugby/val, datasets/rugby/test), class names: [player, ball, referee, scrum, ruck, lineout], and nc: 6. Include comments explaining how to customize.",
+    "4. Create backend/scripts/extract_frames.py: Script to extract frames from video files for labeling. Accept CLI arguments: --video (input video path), --output (output directory, default frames/), --interval (seconds between frames, default 1.0), --max-frames (maximum frames to extract, default 500), --resize (optional resize dimension). Use OpenCV VideoCapture. Save frames as PNG with sequential naming (frame_000001.png, etc.).",
+    "5. Create docs/FINE-TUNING.md: Comprehensive guide covering: (a) Overview of why fine-tuning improves rugby detection, (b) Prerequisites (Python, ultralytics, GPU recommended), (c) Step 1: Extract frames using extract_frames.py with example commands, (d) Step 2: Label data using Roboflow or CVAT with instructions for both platforms and rugby-specific labeling tips (what counts as player vs referee, ball visibility, set-piece boundaries), (e) Step 3: Export dataset in YOLO format and configure rugby_dataset.yaml, (f) Step 4: Run training with train_model.py with example commands, (g) Step 5: Evaluate results (metrics explanation: mAP, precision, recall), (h) Step 6: Use custom model in Rugby Analyzer (set model path in Settings or YOLO_MODEL_PATH env var), (i) Tips for best results (min 500 labeled images, diverse angles, augmentation). Write in Spanish as the app targets Spanish-speaking users.",
+    "6. Update backend/pyproject.toml: Add 'scikit-learn>=1.3.0' to dependencies (needed for team color clustering in FEAT-004, add it here to keep dependency changes together)."
+  ],
+  "acceptance_criteria": [
+    "backend/scripts/train_model.py exists and is syntactically valid Python",
+    "backend/scripts/rugby_dataset.yaml is valid YAML with correct YOLO dataset format",
+    "backend/scripts/extract_frames.py exists and accepts the specified CLI arguments",
+    "docs/FINE-TUNING.md exists with comprehensive labeling and training guide in Spanish",
+    "All scripts are executable and have proper argparse help text",
+    "Backend tests still pass (no breakage from new files)"
+  ],
+  "verification": [
+    "python -c \"import ast; ast.parse(open('backend/scripts/train_model.py').read())\"",
+    "python -c \"import ast; ast.parse(open('backend/scripts/extract_frames.py').read())\"",
+    "python -c \"import yaml; yaml.safe_load(open('backend/scripts/rugby_dataset.yaml'))\"",
+    "cd backend && uv run pytest tests/ -v"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

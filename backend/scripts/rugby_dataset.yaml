@@ -1,0 +1,80 @@
+# =============================================================================
+# Configuración del Dataset YOLO para Rugby
+# =============================================================================
+#
+# Este archivo define la estructura del dataset para entrenar un modelo YOLO
+# personalizado para detección de objetos en partidos de rugby.
+#
+# INSTRUCCIONES DE USO:
+# 1. Organiza tus imágenes etiquetadas en la estructura de carpetas indicada
+# 2. Ajusta las rutas (path, train, val, test) según tu sistema
+# 3. Ejecuta: python train_model.py --data rugby_dataset.yaml
+#
+# ESTRUCTURA DE CARPETAS ESPERADA:
+#   datasets/rugby/
+#   ├── train/
+#   │   ├── images/    # Imágenes de entrenamiento (.jpg, .png)
+#   │   └── labels/    # Etiquetas YOLO (.txt)
+#   ├── val/
+#   │   ├── images/    # Imágenes de validación (10-20% del total)
+#   │   └── labels/    # Etiquetas YOLO (.txt)
+#   └── test/
+#       ├── images/    # Imágenes de test (opcional, 10% del total)
+#       └── labels/    # Etiquetas YOLO (.txt)
+#
+# FORMATO DE ETIQUETAS YOLO (cada línea en el .txt):
+#   <class_id> <x_center> <y_center> <width> <height>
+#   Todas las coordenadas están normalizadas entre 0 y 1
+#
+# =============================================================================
+
+# Ruta raíz del dataset (ajustar según ubicación)
+path: datasets/rugby
+
+# Rutas relativas a 'path' para cada split
+train: train/images
+val: val/images
+test: test/images
+
+# Número de clases
+nc: 6
+
+# Nombres de las clases
+# IMPORTANTE: El orden debe coincidir con los IDs usados en las etiquetas
+names:
+  0: player      # Jugador de campo (cualquier equipo)
+  1: ball        # Pelota de rugby
+  2: referee     # Árbitro o juez de línea
+  3: scrum       # Formación de scrum (grupo de jugadores)
+  4: ruck        # Formación de ruck (disputa en el suelo)
+  5: lineout     # Formación de lineout (saque lateral)
+
+# =============================================================================
+# NOTAS SOBRE ETIQUETADO:
+#
+# - player (0): Etiquetar cada jugador individualmente con un bounding box
+#   ajustado al cuerpo. Incluir jugadores parcialmente visibles si al menos
+#   el 50% del cuerpo es visible.
+#
+# - ball (1): Etiquetar la pelota cuando sea visible. El bounding box debe
+#   ser ajustado (la pelota de rugby es ovalada, usar el rectángulo mínimo).
+#
+# - referee (2): Etiquetar árbitros y jueces de línea. Se distinguen de los
+#   jugadores por su vestimenta diferente (generalmente negro o colores neutros).
+#
+# - scrum (3): Etiquetar la formación completa del scrum como una sola caja
+#   que englobe a todos los jugadores participantes en la formación.
+#
+# - ruck (4): Etiquetar la zona del ruck como una sola caja que englobe
+#   a los jugadores disputando la pelota en el suelo.
+#
+# - lineout (5): Etiquetar la formación completa del lineout como una sola
+#   caja que incluya a los jugadores en la formación lateral.
+#
+# TIPS PARA MEJOR RENDIMIENTO:
+# - Mínimo 500 imágenes etiquetadas (recomendado 1000+)
+# - Incluir variedad de ángulos de cámara (aérea, lateral, zoom)
+# - Incluir diferentes condiciones de iluminación y clima
+# - Balancear las clases: asegurar suficientes ejemplos de cada una
+# - Las clases 3, 4 y 5 (formaciones) son más difíciles, necesitan más ejemplos
+# =============================================================================
