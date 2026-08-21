@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add YOLOv8-pose for posture/skeleton detection. Add a PoseDetector class that uses yolov8s-pose.pt to extract keypoints. Integrate keypoints into tracking (add keypoints to Detection/Track), enhance play_detector tackle detection with posture analysis, and optionally render simplified skeletons on FieldView.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Create backend/src/cv/pose_detector.py: Implement PoseDetector class following YOLODetector pattern. It uses yolov8s-pose.pt, returns PoseDetection dataclass (extends Detection with keypoints: list of (x, y, confidence) for 17 COCO keypoints). Include method detect_poses(frame) that returns list of PoseDetection. The keypoints array follows COCO format: nose, left_eye, right_eye, left_ear, right_ear, left_shoulder, right_shoulder, left_elbow, right_elbow, left_wrist, right_wrist, left_hip, right_hip, left_knee, right_knee, left_ankle, right_ankle.",
     "2. Update backend/src/cv/detector.py: Add optional 'keypoints' field to the Detection dataclass (default None, type Optional[list[tuple[float, float, float]]]).",
@@ -33,5 +33,5 @@
     "cd frontend && npm run build"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 275 backend tests pass. Frontend builds successfully. PoseDetection extends Detection via dataclass inheritance. IoU matching threshold of 0.3 used for merging pose keypoints into main detections. Tackle posture detection uses 45-degree torso angle threshold."
 }
